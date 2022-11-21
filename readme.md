@@ -3,7 +3,7 @@
 This is the service handling creation and fetching of orders for the customer. 
 
 ## Status
-Currently only in proof-of-concept state. In order to work you need to manually open a SSH connection to the database droplet, and run `~/hbase/bin/hbase thrift start -p 9090 --inforport 9095`
+Currently only in proof-of-concept state. In order to work you need to manually open a SSH connection to the database droplet, and run `~/hbase/bin/hbase thrift start -p 9090 --inforport 9095` to start the thrift interface which the service connects to. The thift interface will end if you close the SSH connection.
 
 ## Database 
 The service uses HBase as the database. Below is a sketch of the datamodel.
