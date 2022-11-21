@@ -10,28 +10,29 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
 
 <table>
   <tr>
-    <td rowspan="2"></td>
-    <td rowspan="2">rowkey</td>
-    <td colspan="3">info</td>
-    <td colspan="2">ids</td>
-    <td colspan="2">addr</td>
-    <td colspan="6">ol</td>
+    <td><i>Column Family</i></td>
+    <td rowspan="2"><b>rowkey</b></td>
+    <td colspan="3"><b>info</b></td>
+    <td colspan="2"><b>ids</b></td>
+    <td colspan="2"><b>addr</b></td>
+    <td colspan="6"><b>ol</b></td>
   </tr>
   <tr>
-    <td>o_id</td>
-    <td>o_time</td>
-    <td>state</td>
-    <td>c_id</td>
-    <td>r_id</td>
-    <td>c_addr</td>
-    <td>r_addr</td>
-    <td>1</td>
-    <td>2</td>
-    <td>3</td>
-    <td colspan="3">...</td>
+    <td><i>Column</i></td>
+    <td><i><b>o_id</b></i></td>
+    <td><i><b>o_time</b></i></td>
+    <td><i><b>state</b></i></td>
+    <td><i><b>c_id</b></i></td>
+    <td><i><b>r_id</b></i></td>
+    <td><i><b>c_addr</b></i></td>
+    <td><i><b>r_addr</b></i></td>
+    <td><i><b>1</b></i></td>
+    <td><i><b>2</b></i></td>
+    <td><i><b>3</b></i></td>
+    <td colspan="3"><i><b>...</b></i></td>
   </tr>
   <tr>
-    <td>Content</td>
+    <td><i>Content</i></td>
     <td>**</td>
     <td>*</td>
     <td>DateTime of order creation</td>
@@ -41,14 +42,14 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td>Customer address</td>
     <td>Restaurant address</td>
     <td>menuid:price***</td>
-    <td>menuid:price</td>
-    <td>menuid:price</td>
-    <td>menuid:price</td>
-    <td>menuid:price</td>
-    <td>menuid:price</td>
+    <td>-||-</td>
+    <td>-||-</td>
+    <td>-||-</td>
+    <td>-||-</td>
+    <td>-||-</td>
   </tr>
   <tr>
-    <td>Examples</td>
+    <td><i>Examples</i></td>
     <td></td>
     <td></td>
     <td>2022-25-08 13:48:25</td>
