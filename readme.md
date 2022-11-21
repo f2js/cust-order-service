@@ -10,6 +10,7 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
 
 <table>
   <tr>
+    <td rowspan="2"></td>
     <td rowspan="2">rowkey</td>
     <td colspan="3">info</td>
     <td colspan="2">ids</td>
@@ -30,12 +31,30 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td colspan="3">...</td>
   </tr>
   <tr>
+    <td>Content</td>
     <td>**</td>
     <td>*</td>
+    <td>DateTime of order creation</td>
+    <td>Processing, Pending, Rejected, Accepted, ReadyForPickup, OutForDelivery, Delivered</td>
+    <td>Mongo ObjectId</td>
+    <td>Mongo ObjectId</td>
+    <td>Customer address</td>
+    <td>Restaurant address</td>
+    <td>menuid:price***</td>
+    <td>menuid:price</td>
+    <td>menuid:price</td>
+    <td>menuid:price</td>
+    <td>menuid:price</td>
+    <td>menuid:price</td>
+  </tr>
+  <tr>
+    <td>Examples</td>
+    <td></td>
+    <td></td>
     <td>2022-25-08 13:48:25</td>
     <td>Pending</td>
-    <td>Mongo ObjectId</td>
-    <td>Mongo ObjectId</td>
+    <td>"507f1f77bcf86cd799439011"</td>
+    <td>"507f191e810c19729de860ea"</td>
     <td>Lyngvej 2, 2800 Lyngby</td>
     <td>Lyngvej 2, 2800 Lyngby</td>
     <td>25:70</td>
@@ -49,3 +68,5 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
 * sha256 of c_id, r_id, ordertime and all orderlines
 
 ** random salt using r_id as seed with o_id appended
+
+*** price in cents/ører
