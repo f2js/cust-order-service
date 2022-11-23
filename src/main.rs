@@ -15,7 +15,7 @@ async fn main() -> io::Result<()> {
             .service(api::get_tables)
             .service(api::create)
     })
-    .bind("0.0.0.0:9090")?
+    .bind("0.0.0.0:8080")?
     .run()
     .await
 }

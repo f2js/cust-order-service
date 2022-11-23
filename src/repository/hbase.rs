@@ -1,11 +1,10 @@
 use hbase_thrift::{hbase::THbaseSyncClient, THbaseSyncClientExt};
 
 use crate::models::{tables::TableName, orders::Order};
-use crate::repository::hbase_utils::{connect_client, create_mutation_from_order};
+use crate::repository::hbase_utils::{create_mutation_from_order};
+use crate::repository::hbase_connection::HbaseConnection;
 
-pub fn get_tables() -> Result<Vec<TableName>, thrift::Error> {
-    let mut client = connect_client()?;
-
+pub fn get_tables(mut client: HbaseConnection) -> Result<Vec<TableName>, thrift::Error> {
     let tables = client.get_table_names()?;
     let tables_names = tables
         .into_iter()
@@ -14,9 +13,7 @@ pub fn get_tables() -> Result<Vec<TableName>, thrift::Error> {
     Ok(tables_names)
 }
 
-pub fn add_order(order:Order) -> Result<String, thrift::Error> {
-    let mut client = connect_client()?;
-
+pub fn add_order(order:Order, mut client: HbaseConnection) -> Result<String, thrift::Error> {
     let (batch, rowkey) = create_mutation_from_order(&order);
     match client.put("orders", vec![batch], None, None) {
         Ok(_) => Ok(rowkey),

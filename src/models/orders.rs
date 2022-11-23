@@ -16,7 +16,7 @@ pub struct CreateOrder {
     pub rest_addr: String,
     pub orderlines: Vec<Orderline>,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Order {
     pub o_id: u32,
     pub c_id: String,
