@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TableName {
-    table_name: String,
+    pub table_name: String,
 }
 
 impl TableName {
@@ -18,5 +18,11 @@ pub struct TableNames {
 impl TableNames{
     pub fn new(list: Vec<TableName>) -> Self {
         Self {table_names: list}
+    }
+}
+
+impl Into<String> for TableName {
+    fn into(self) -> String {
+        self.table_name
     }
 }

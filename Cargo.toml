@@ -1,9 +1,13 @@
 [package]
-name = "order-service"
+name = "order_service"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+cucumber = "0.14.2"
+futures = "0.3"
 
 [dependencies]
 actix-web = "4.2.1"
@@ -19,3 +23,8 @@ sha2 = "0.10.6"
 rand = "0.8.5"
 rand_seeder = "0.2.3"
 rand_pcg = "0.3.1"
+mockall = "0.11.2"
+
+[[test]]
+name = "acceptance_tests"
+harness = false  # allows Cucumber to print output instead of libtest

@@ -5,6 +5,20 @@ use thrift::{
 
 use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation}, THbaseSyncClientExt, Attributes};
 
+use mockall::{automock, predicate::*};
+
+#[cfg_attr(test, automock)]
+pub trait HbaseClient {
+    fn get_table_names(&mut self) -> thrift::Result<Vec<Text>>;
+    fn put(
+        &mut self,
+        table_name: &str,
+        row_batches: Vec<BatchMutation>,
+        timestamp: Option<i64>,
+        attributes: Option<Attributes>,
+    ) -> thrift::Result<()>;
+}
+
 pub struct HbaseConnection {
     connection: HbaseSyncClient<TBinaryInputProtocol<TBufferedReadTransport<ReadHalf<TTcpChannel>>>, TBinaryOutputProtocol<TBufferedWriteTransport<WriteHalf<TTcpChannel>>>>,
 }
@@ -15,13 +29,15 @@ impl HbaseConnection {
         Ok(Self{
             connection: HbaseSyncClient::new(i_prot, o_prot)
         })
-    }
+    }    
+}
 
-    pub fn get_table_names(&mut self) -> thrift::Result<Vec<Text>> {
+impl HbaseClient for HbaseConnection {
+    fn get_table_names(&mut self) -> thrift::Result<Vec<Text>> {
         self.connection.get_table_names()
     }
 
-    pub fn put(
+    fn put(
         &mut self,
         table_name: &str,
         row_batches: Vec<BatchMutation>,
