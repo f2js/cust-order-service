@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: order-service
+  labels:
+    app: web
+spec:
+  containers:
+    - name: order-service
+      image: f2js/order-service
+      ports:
+        - containerPort: 8080
