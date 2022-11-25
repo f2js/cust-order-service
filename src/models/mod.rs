@@ -1,2 +1,2 @@
-pub(crate) mod orders;
+pub mod orders;
 pub(crate) mod tables;

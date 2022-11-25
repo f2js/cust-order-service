@@ -5,8 +5,26 @@ metadata:
   labels:
     app: web
 spec:
+  # affinity:
+  #     nodeAffinity:
+  #       requiredDuringSchedulingIgnoredDuringExecution:
+  #         nodeSelectorTerms:
+  #         - matchExpressions:
+  #           - key: kubernetes.io/hostname
+  #             operator: In
+  #             values:
+  #             - worker-pool-ams3-mfnnt
+  #             - worker-pool-ams3-mfnnl
+  #       preferredDuringSchedulingIgnoredDuringExecution:
+  #       - weight: 1
+  #         preference:
+  #           matchExpressions:
+  #           - key: kubernetes.io/hostname
+  #             operator: In
+  #             values:
+  #             - worker-pool-ams3-mfnnt
   containers:
     - name: order-service
-      image: f2js/order-service
+      image: f2js/order-service:latest
       ports:
         - containerPort: 8080

@@ -1,21 +1,6 @@
-mod api;
-mod models;
-mod repository;
-
-use std::io;
-use actix_web::{App, HttpServer};
+use order_service::run_api;
 
 #[actix_web::main]
-async fn main() -> io::Result<()> {
-
-    HttpServer::new(|| {
-        App::new()
-            // register HTTP requests handlers
-            .service(api::index)
-            .service(api::get_tables)
-            .service(api::create)
-    })
-    .bind("0.0.0.0:8080")?
-    .run()
-    .await
+async fn main() -> std::io::Result<()> {
+    run_api().await
 }
