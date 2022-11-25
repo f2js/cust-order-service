@@ -10,17 +10,6 @@ impl TableName {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TableNames {
-    table_names: Vec<TableName>
-}
-
-impl TableNames{
-    pub fn new(list: Vec<TableName>) -> Self {
-        Self {table_names: list}
-    }
-}
-
 impl Into<String> for TableName {
     fn into(self) -> String {
         self.table_name

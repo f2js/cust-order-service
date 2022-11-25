@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+
 use thrift::{
     protocol::{TBinaryInputProtocol, TBinaryOutputProtocol},
     transport::{TBufferedReadTransport, TBufferedWriteTransport, TIoChannel, TTcpChannel, WriteHalf, ReadHalf},
 };
 
-use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation}, THbaseSyncClientExt, Attributes};
+use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation, ColumnDescriptor, TRowResult}, THbaseSyncClientExt, Attributes};
 
 use mockall::{automock, predicate::*};
 
@@ -17,6 +19,8 @@ pub trait HbaseClient {
         timestamp: Option<i64>,
         attributes: Option<Attributes>,
     ) -> thrift::Result<()>;
+    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), thrift::Error>;
+    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error>;
 }
 
 pub struct HbaseConnection {
@@ -46,6 +50,27 @@ impl HbaseClient for HbaseConnection {
     ) -> thrift::Result<()> {
         self.connection.put(&table_name, row_batches, timestamp, attributes)
     } 
+    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), thrift::Error> {
+        match self.connection.table_exists(table_name) {
+            Ok(r) => if r {return Ok(())},
+            Err(e) => return Err(e),
+        };
+        let colfams: Vec<ColumnDescriptor> = column_families.iter().map(|elem| {
+            ColumnDescriptor {
+                name: Some(elem.to_owned().into()),
+                compression: Some("NONE".into()),
+                time_to_live: Some(0x7fffffff),
+                max_versions: Some(3),
+                bloom_filter_type: Some("NONE".into()),
+                ..Default::default()
+            }
+        }).collect();
+        self.connection.create_table(table_name.into(), colfams)
+    }
+    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error> {
+        self.connection.get_row("orders".into(), row_id.into(), BTreeMap::default())
+    }
+    
 }
 
 fn get_protocols(url: &str) -> Result<(TBinaryInputProtocol<TBufferedReadTransport<ReadHalf<TTcpChannel>>>, TBinaryOutputProtocol<TBufferedWriteTransport<WriteHalf<TTcpChannel>>>), thrift::Error> {

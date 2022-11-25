@@ -36,3 +36,17 @@ pub async fn get_tables() -> impl Responder {
     }
     
 }
+
+#[get("/order/{id}")]
+pub async fn get_order(id: String) -> impl Responder {
+    match workers::get_row(&id, &DB_IP) {
+        Ok(r) => 
+            return HttpResponse::Ok()
+                .content_type("APPLICATION_JSON")
+                .json(format!("Successfully got order: {:?}", r.o_id)),
+        Err(e) =>
+            return HttpResponse::InternalServerError()
+                .content_type("APPLICATION_JSON")
+                .json(e.to_string()),
+    }
+}

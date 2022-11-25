@@ -4,7 +4,7 @@ use rand::prelude::*;
 use rand_seeder::{Seeder};
 use rand_pcg::Pcg64;
 
-use crate::models::{orders::Order};
+use crate::models::{orders::{Order, Orderline, OrderBuilder}};
 
 pub(crate) fn create_mutation_from_order(order: &Order) -> (BatchMutation, String) {
     let id_mut = create_cell_mutation("info", "o_id", order.o_id.to_string());
@@ -43,11 +43,273 @@ fn generate_salt(seed: &str) -> String {
     rng.gen::<u8>().to_string()
 }
 
+pub fn try_create_order_from_hbase_row(
+    hbase_row: &hbase_thrift::hbase::TRowResult,
+) -> Option<Order> {
+    let mut order_builder = OrderBuilder::default();
+    let cols = &hbase_row.columns.clone()?;
+    for (col, cell) in cols.iter() {
+        let col = col.clone();
+        let cell = cell.clone().value;
+        let (column, value) = match get_column_and_value(col, cell) {
+            Some(v) => v,
+            None => continue,
+        };
+        set_order_field(column, value, &mut order_builder);
+    }
+    Order::build(order_builder)
+}
+
+fn get_column(col: Vec<u8>) -> Option<(String, String)> {
+    let column: String = match std::str::from_utf8(&col) {
+        Ok(colname) => colname.to_string(),
+        Err(_) => return None,
+    };
+    Some(match column.split_once(':') {
+        Some(v) => (v.0.to_owned(), v.1.to_owned()),
+        None => return None,
+    })
+}
+
+fn get_value(cell: Option<Vec<u8>>) -> Option<String> {
+    let cell = cell?;
+    Some(match std::str::from_utf8(&cell) {
+        Ok(val) => val.to_string(),
+        Err(_) => return None,
+    })
+}
+
+fn get_column_and_value(col: Vec<u8>, cell: Option<Vec<u8>>) -> Option<((String, String),String)> {
+    Some((get_column(col)?, get_value(cell)?))
+}
+
+fn set_order_field(field: (String, String), val: String, order_builder: &mut OrderBuilder) {
+    let col: (&str, &str) = (&field.0, &field.1);
+    match col {
+        ("info", "o_id") => order_builder.o_id = Some(val.clone()),
+        ("info", "o_time") => order_builder.ordertime = Some(val.clone()),
+        ("info", "state") => order_builder.state = Some(val.clone()),
+        ("ids", "c_id") => order_builder.c_id = Some(val.clone()),
+        ("ids", "r_id") => order_builder.r_id = Some(val.clone()),
+        ("addr", "c_addr") => order_builder.cust_addr = Some(val.clone()),
+        ("addr", "r_addr") => order_builder.rest_addr = Some(val.clone()),
+        ("ol", _) => {
+            let result = <Orderline as std::str::FromStr>::from_str(&val.clone());
+            match result {
+                Ok(ol) => order_builder.orderlines.push(ol),
+                Err(_) => println!("Badly formatted Orderline."),
+            }
+        }
+        (_, _) => println!("Unknown column type"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{str::FromStr, collections::BTreeMap};
 
-    use super::{generate_salt, generate_row_key, create_cell_mutation, create_mutation_from_order};
-    use crate::models::orders::{Order, Orderline};
+    use hbase_thrift::hbase::TCell;
+
+    use super::*;
+    use crate::models::orders::{Order, Orderline, OrderBuilder};
+
+    #[test]
+    fn test_get_column_bad_str() {
+        let input:Vec<u8> = vec![255,255,58,255,255];
+        let actual = get_column(input);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_column_bad_split() {
+        let input:Vec<u8> = "colfamcol".into();
+        let actual = get_column(input);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_column() {
+        let expected = ("colfam", "col");
+        let input:Vec<u8> = "colfam:col".into();
+        let actual = get_column(input);
+        assert!(actual.is_some());
+        let actual = actual.unwrap();
+        assert_eq!(actual.0, expected.0);
+        assert_eq!(actual.1, expected.1);
+    }
+
+    #[test]
+    fn test_get_value_none() {
+        let actual = get_value(None);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_value_bad_str() {
+        let input: Vec<u8> = vec![255,255,255,255];
+        let actual = get_value(Some(input));
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_value() {
+        let expected = "hello, world";
+        let input: Vec<u8> = expected.into();
+        let actual = get_value(Some(input));
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_set_order_field_bad_col() {
+        let field = ("addr".to_string(), "o_id".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.o_id.is_none());
+        assert!(order_builder.state.is_none());
+        assert!(order_builder.ordertime.is_none());
+        assert!(order_builder.r_id.is_none());
+        assert!(order_builder.c_id.is_none());
+        assert!(order_builder.rest_addr.is_none());
+        assert!(order_builder.cust_addr.is_none());
+        assert!(order_builder.orderlines.len() == 0);
+    }
+
+    #[test]
+    fn test_set_order_field_bad_colfam() {
+        let field = ("aaaaadr".to_string(), "r_addr".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.o_id.is_none());
+        assert!(order_builder.state.is_none());
+        assert!(order_builder.ordertime.is_none());
+        assert!(order_builder.r_id.is_none());
+        assert!(order_builder.c_id.is_none());
+        assert!(order_builder.rest_addr.is_none());
+        assert!(order_builder.cust_addr.is_none());
+        assert!(order_builder.orderlines.len() == 0);
+    }
+
+    #[test]
+    fn test_set_order_field_bad_and_good_ol() {
+        let field = ("ol".to_string(), "1".to_string());
+        let val1 = "12:12".to_string();
+        let val2 = "256".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field.clone(), val1.clone(), &mut order_builder);
+        set_order_field(field, val2.clone(), &mut order_builder);
+        let exp1 = Orderline::from_str(&val1).unwrap();
+        assert!(order_builder.orderlines.len() == 1);
+        assert_eq!(order_builder.orderlines[0], exp1);
+    }
+
+    #[test]
+    fn test_set_order_field_two_ol() {
+        let field = ("ol".to_string(), "1".to_string());
+        let val1 = "12:12".to_string();
+        let val2 = "16:24".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field.clone(), val1.clone(), &mut order_builder);
+        set_order_field(field, val2.clone(), &mut order_builder);
+        let exp1 = Orderline::from_str(&val1).unwrap();
+        let exp2 = Orderline::from_str(&val2).unwrap();
+        assert!(order_builder.orderlines.len() == 2);
+        assert_eq!(order_builder.orderlines[0], exp1);
+        assert_eq!(order_builder.orderlines[1], exp2);
+    }
+
+    #[test]
+    fn test_set_order_field_bad_ol() {
+        let field = ("ol".to_string(), "1".to_string());
+        let val = "hej".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.orderlines.len() == 0);
+    }
+
+    #[test]
+    fn test_set_order_field_ol() {
+        let field = ("ol".to_string(), "1".to_string());
+        let val = "12:12".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.orderlines.len() == 1);
+        let exp = Orderline::from_str(&val).unwrap();
+        assert_eq!(order_builder.orderlines[0], exp);
+    }
+
+    #[test]
+    fn test_set_order_field_r_addr() {
+        let field = ("addr".to_string(), "r_addr".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.rest_addr.is_some());
+        assert_eq!(order_builder.rest_addr.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_c_addr() {
+        let field = ("addr".to_string(), "c_addr".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.cust_addr.is_some());
+        assert_eq!(order_builder.cust_addr.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_r_id() {
+        let field = ("ids".to_string(), "r_id".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.r_id.is_some());
+        assert_eq!(order_builder.r_id.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_c_id() {
+        let field = ("ids".to_string(), "c_id".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.c_id.is_some());
+        assert_eq!(order_builder.c_id.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_state() {
+        let field = ("info".to_string(), "state".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.state.is_some());
+        assert_eq!(order_builder.state.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_o_id() {
+        let field = ("info".to_string(), "o_id".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.o_id.is_some());
+        assert_eq!(order_builder.o_id.unwrap(), val);
+    }
+
+    #[test]
+    fn test_set_order_field_o_time() {
+        let field = ("info".to_string(), "o_time".to_string());
+        let val = "value".to_string();
+        let mut order_builder = OrderBuilder::default();
+        set_order_field(field, val.clone(), &mut order_builder);
+        assert!(order_builder.ordertime.is_some());
+        assert_eq!(order_builder.ordertime.unwrap(), val);
+    }
+
     #[test]
     fn test_create_mutation_from_order_full_columns() {
         let ol1 = Orderline{item_num: 10, price: 5};
