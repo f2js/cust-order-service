@@ -38,7 +38,8 @@ pub async fn get_tables() -> impl Responder {
 }
 
 #[get("/order/{id}")]
-pub async fn get_order(id: String) -> impl Responder {
+pub async fn get_order(path: web::Path<String>) -> impl Responder {
+    let id = path.into_inner();
     match workers::get_row(&id, &DB_IP) {
         Ok(r) => 
             return HttpResponse::Ok()
@@ -48,5 +49,21 @@ pub async fn get_order(id: String) -> impl Responder {
             return HttpResponse::InternalServerError()
                 .content_type("APPLICATION_JSON")
                 .json(e.to_string()),
+    }
+}
+
+#[get("/cust/{id}")]
+pub async fn get_orders_from_user(path: web::Path<String>) -> impl Responder {
+    let id = path.into_inner();
+    println!("{id}");
+    match workers::get_orders_info_by_user(&id, &DB_IP) {
+        Ok(r) => 
+            return HttpResponse::Ok()
+                .content_type("APPLICATION_JSON")
+                .json(r),
+        Err(e) =>
+        return HttpResponse::InternalServerError()
+            .content_type("APPLICATION_JSON")
+            .json(e.to_string()),
     }
 }

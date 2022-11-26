@@ -17,6 +17,16 @@ pub struct CreateOrder {
     pub rest_addr: String,
     pub orderlines: Vec<Orderline>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OrderInfo {
+    pub o_id: String,
+    pub ordertime: String,
+    pub state: OrderState,
+    pub r_id: String,
+    pub c_id: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Order {
     pub o_id: String,
@@ -44,7 +54,7 @@ pub struct OrderBuilder {
     pub rest_addr: Option<String>,
     pub orderlines: Vec<Orderline>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum OrderState {
     Processing,
     Pending,
@@ -231,6 +241,22 @@ impl FromStr for Orderline {
         Ok(Self {
             item_num: item, 
             price,
+        })
+    }
+}
+
+impl OrderInfo {
+    pub fn build(builder: OrderBuilder) -> Option<Self> {
+        let orderstate = match OrderState::from_str(&builder.state?) {
+            Ok(s)=> s,
+            Err(_) => return None,
+        };
+        Some(Self {
+            o_id: builder.o_id?,
+            r_id: builder.r_id?,
+            state: orderstate,
+            ordertime: builder.ordertime?,
+            c_id: builder.c_id?,
         })
     }
 }

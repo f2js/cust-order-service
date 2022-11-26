@@ -11,6 +11,8 @@ pub async fn run_api() -> std::io::Result<()>{
             .service(api::endpoints::index)
             .service(api::endpoints::get_tables)
             .service(api::endpoints::create)
+            .service(api::endpoints::get_orders_from_user)
+            .service(api::endpoints::get_order)
     })
     .bind("0.0.0.0:8080")?
     .run()

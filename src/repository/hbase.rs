@@ -1,6 +1,12 @@
+use std::collections::BTreeMap;
+
+use crate::models::orders::OrderInfo;
 use crate::models::{orders::Order, tables::TableName};
 use crate::repository::hbase_connection::HbaseClient;
-use crate::repository::hbase_utils::{create_mutation_from_order, try_create_order_from_hbase_row};
+use crate::repository::hbase_utils::{create_mutation_from_order, create_order_builder_from_hbase_row, build_single_column_filter};
+use hbase_thrift::hbase::TScan;
+
+use super::hbase_utils::create_scan;
 
 pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, thrift::Error> {
     let tables = client.get_table_names()?;
@@ -35,10 +41,29 @@ pub fn get_order_row(row_id: &str, mut client: impl HbaseClient) -> Result<Order
         Some(v) => v,
         None => return Err(thrift::Error::User("Error, No content found".into())),
     };
-    match try_create_order_from_hbase_row(row) {
+    match Order::build(create_order_builder_from_hbase_row(row)) {
         Some(v) => Ok(v),
         None => return Err(thrift::Error::User("Error reading row contents".into())),
     }
+}
+
+pub fn get_orders_info_by_user(user_id: String, mut client: impl HbaseClient) -> Result<Vec<OrderInfo>, thrift::Error> {
+    let scan = create_scan(
+        vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
+        "ids", "c_id", &user_id
+    );
+    let scanid = client.scanner_open_with_scan("orders".into(), scan, BTreeMap::default())?;
+    let res = client.scanner_get_list(scanid, 15)?;
+    let mut orders: Vec<OrderInfo> = vec![];
+    for row in res.iter() {
+        orders.push(
+            match OrderInfo::build(create_order_builder_from_hbase_row(row)) {
+                Some(v) => v,
+                None => continue,
+            }
+        );
+    }
+    Ok(orders)
 }
 
 #[cfg(test)]
@@ -46,10 +71,10 @@ mod tests {
     use super::*;
     use crate::{
         models::orders::Orderline,
-        repository::{hbase_connection::MockHbaseClient, hbase_utils::create_mutation_from_order},
+        repository::{hbase_connection::MockHbaseClient, hbase_utils::{create_mutation_from_order, order_to_trowresult}},
     };
     use hbase_thrift::{
-        hbase::{BatchMutation, Text},
+        hbase::{BatchMutation, Text, TScan, TRowResult, TCell},
         Attributes,
     };
     use mockall::predicate::eq;
@@ -64,6 +89,123 @@ mod tests {
     //         Err(e) => panic!("ERRROR"),
     //     };
     // }
+
+    #[test]
+    fn test_get_orders_from_user_scanner_get_fail() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_scanner_open_with_scan()
+            .withf(move |x,y,z| {
+                std::str::from_utf8(x).unwrap() == "orders"
+                && y.eq(&create_scan(
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    "ids", "c_id", &userid.clone()
+                    ))
+                && z.eq(&BTreeMap::default())
+            })
+            .times(1)
+            .returning(|_x, _y, _z| {
+                Ok(55)
+            });
+        mock_con.expect_scanner_get_list()
+            .withf(|x, y| {
+                x == &55 && y == &15
+            })
+            .times(1)
+            .returning(move|_x, _y| {
+                Err(thrift::Error::User("()".into()))
+            });
+        let res = get_orders_info_by_user(userid.into(), mock_con);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_get_orders_from_user_scanner_open_fail() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_scanner_open_with_scan()
+            .withf(move |x,y,z| {
+                std::str::from_utf8(x).unwrap() == "orders"
+                && y.eq(&create_scan(
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    "ids", "c_id", &userid.clone()
+                    ))
+                && z.eq(&BTreeMap::default())
+            })
+            .times(1)
+            .returning(|_x, _y, _z| {
+                Err(thrift::Error::User("()".into()))
+            });
+        mock_con.expect_scanner_get_list().never();
+        let res = get_orders_info_by_user(userid.into(), mock_con);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_get_orders_from_user_on_content() {
+        let userid = "id";
+        let input_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into());
+        let exp_order = input_order.clone();
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_scanner_open_with_scan()
+            .withf(move |x,y,z| {
+                std::str::from_utf8(x).unwrap() == "orders"
+                && y.eq(&create_scan(
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    "ids", "c_id", &userid.clone()
+                    ))
+                && z.eq(&BTreeMap::default())
+            })
+            .times(1)
+            .returning(|_x, _y, _z| {
+                Ok(55)
+            });
+        mock_con.expect_scanner_get_list()
+            .withf(|x, y| {
+                x == &55 && y == &15
+            })
+            .times(1)
+            .returning(move|_x, _y| {
+                Ok(vec![order_to_trowresult(input_order.clone())])
+            });
+        let res = get_orders_info_by_user(userid.into(), mock_con).unwrap();
+        assert!(res.len() == 1);
+        let oinfo = &res[0];
+        assert_eq!(oinfo.o_id, exp_order.o_id);
+        assert_eq!(oinfo.r_id, exp_order.r_id);
+        assert_eq!(oinfo.state, exp_order.state);
+        assert_eq!(oinfo.ordertime, exp_order.ordertime);
+    }
+
+    #[test]
+    fn test_get_orders_from_user_is_ok() {
+        let userid = "id";
+        let exp_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into());
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_scanner_open_with_scan()
+            .withf(move |x,y,z| {
+                std::str::from_utf8(x).unwrap() == "orders"
+                && y.eq(&create_scan(
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    "ids", "c_id", &userid.clone()
+                    ))
+                && z.eq(&BTreeMap::default())
+            })
+            .times(1)
+            .returning(|_x, _y, _z| {
+                Ok(55)
+            });
+        mock_con.expect_scanner_get_list()
+            .withf(|x, y| {
+                x == &55 && y == &15
+            })
+            .times(1)
+            .returning(move|_x, _y| {
+                Ok(vec![order_to_trowresult(exp_order.clone())])
+            });
+        let res = get_orders_info_by_user(userid.into(), mock_con);
+        assert!(res.is_ok());
+    }
 
     #[test]
     fn test_add_order_empty() {
