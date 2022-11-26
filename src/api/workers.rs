@@ -1,6 +1,6 @@
 use actix_web::{web};
 
-use crate::{models::{orders::{CreateOrder, Order}, tables::TableName}, repository::{hbase_connection::HbaseConnection, hbase}};
+use crate::{models::{orders::{CreateOrder, Order, OrderInfo}, tables::TableName}, repository::{hbase_connection::HbaseConnection, hbase}};
 
 pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str) -> Result<String, thrift::Error> {
     let con = HbaseConnection::connect(db_ip)?;
@@ -20,4 +20,9 @@ pub fn create_table(db_ip: &str) -> Result<(), thrift::Error> {
 pub fn get_row(row_id: &str, db_ip: &str) -> Result<Order, thrift::Error> {
     let con = HbaseConnection::connect(db_ip)?;
     hbase::get_order_row(row_id, con)
+}
+
+pub fn get_orders_info_by_user(user_id: &str, db_ip: &str) -> Result<Vec<OrderInfo>, thrift::Error> {
+    let con = HbaseConnection::connect(db_ip)?;
+    hbase::get_orders_info_by_user(user_id.to_string(), con)
 }

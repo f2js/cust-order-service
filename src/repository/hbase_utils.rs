@@ -1,4 +1,4 @@
-use hbase_thrift::{hbase::{BatchMutation}, MutationBuilder, BatchMutationBuilder};
+use hbase_thrift::{hbase::{BatchMutation, TScan}, MutationBuilder, BatchMutationBuilder};
 
 use rand::prelude::*;
 use rand_seeder::{Seeder};
@@ -43,11 +43,14 @@ fn generate_salt(seed: &str) -> String {
     rng.gen::<u8>().to_string()
 }
 
-pub fn try_create_order_from_hbase_row(
+pub fn create_order_builder_from_hbase_row(
     hbase_row: &hbase_thrift::hbase::TRowResult,
-) -> Option<Order> {
+) -> OrderBuilder {
     let mut order_builder = OrderBuilder::default();
-    let cols = &hbase_row.columns.clone()?;
+    let cols = match &hbase_row.columns{
+        Some(v) =>v,
+        None => return order_builder,
+    };
     for (col, cell) in cols.iter() {
         let col = col.clone();
         let cell = cell.clone().value;
@@ -57,7 +60,7 @@ pub fn try_create_order_from_hbase_row(
         };
         set_order_field(column, value, &mut order_builder);
     }
-    Order::build(order_builder)
+    order_builder
 }
 
 fn get_column(col: Vec<u8>) -> Option<(String, String)> {
@@ -104,14 +107,179 @@ fn set_order_field(field: (String, String), val: String, order_builder: &mut Ord
     }
 }
 
+pub fn build_single_column_filter(colfam: &str, col: &str, operator: &str, value: &str) -> String {
+    format!("SingleColumnValueFilter('{colfam}', '{col}', {operator}, 'binaryprefix:{value}')")
+}
+
+pub fn create_scan(columns_to_fetch: Vec<Vec<u8>>, filter_colfam: &str, filter_col: &str, filter_val: &str) -> TScan {
+    TScan {
+        columns: Some(columns_to_fetch),
+        filter_string: Some(build_single_column_filter(filter_colfam, filter_col, "=", &filter_val).into()),
+        start_row: None,
+        stop_row: None,
+        timestamp: None,
+        caching: None,
+        batch_size: Some(0),
+        sort_columns: Some(false),
+        reversed: Some(false),
+        cache_blocks: Some(false),
+    }
+}
+
+// Only for testing purposes 
+pub(crate) fn order_to_trowresult(order: Order) -> hbase_thrift::hbase::TRowResult {
+    let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
+    columns.insert("info:o_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
+    columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
+    columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
+    columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell(&order.c_id));
+    columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
+    columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
+    columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+    for (i, v) in order.orderlines.iter().enumerate() {
+        columns.insert(format!("ol:{i}").as_bytes().to_vec(), _to_tcell(&v.to_string()));
+    };
+    hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None }
+}
+
+fn _to_tcell(val: &str) -> hbase_thrift::hbase::TCell {
+    hbase_thrift::hbase::TCell { value: Some(val.as_bytes().to_vec()), timestamp: Some(0) }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{str::FromStr, collections::BTreeMap};
-
-    use hbase_thrift::hbase::TCell;
+    use std::{str::FromStr};
 
     use super::*;
     use crate::models::orders::{Order, Orderline, OrderBuilder};
+
+    #[test]
+    fn test_create_order_builder_from_hbase_row_unknown_field() {
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
+        columns.insert("inaaafo:oooo_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
+        columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
+        columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
+        columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell(&order.c_id));
+        columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
+        columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
+        columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+        let trowresult = hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
+        let obuilder = create_order_builder_from_hbase_row(&trowresult);
+        assert!(obuilder.o_id.is_none());
+
+        assert!(obuilder.c_id.is_some());
+        assert!(obuilder.r_id.is_some());
+        assert!(obuilder.ordertime.is_some());
+        assert!(obuilder.cust_addr.is_some());
+        assert!(obuilder.rest_addr.is_some());
+        assert!(obuilder.state.is_some());
+        assert!(obuilder.orderlines.len() == 0)
+    }
+
+    #[test]
+    fn test_create_order_builder_from_hbase_row_missing_field() {
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
+        columns.insert("info:o_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
+        columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
+        columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
+        // columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell(&order.c_id));
+        columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
+        columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
+        columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+        let trowresult = hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
+        let obuilder = create_order_builder_from_hbase_row(&trowresult);
+        assert!(obuilder.c_id.is_none());
+
+        assert!(obuilder.o_id.is_some());
+        assert!(obuilder.r_id.is_some());
+        assert!(obuilder.ordertime.is_some());
+        assert!(obuilder.cust_addr.is_some());
+        assert!(obuilder.rest_addr.is_some());
+        assert!(obuilder.state.is_some());
+        assert!(obuilder.orderlines.len() == 0)
+    }
+
+    #[test]
+    fn test_create_order_builder_from_hbase_row_on_content() {
+        let ol1 = Orderline{item_num: 10, price: 5};
+        let ol2 = Orderline{item_num: 16, price: 32};
+        let ol3 = Orderline{item_num: 20, price: 64};
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let trowresult = order_to_trowresult(order.clone());
+        let obuilder = create_order_builder_from_hbase_row(&trowresult);
+        assert_eq!(obuilder.o_id.unwrap(), order.o_id);
+        assert_eq!(obuilder.r_id.unwrap(), order.r_id);
+        assert_eq!(obuilder.c_id.unwrap(), order.c_id);
+        assert_eq!(obuilder.cust_addr.unwrap(), order.cust_addr);
+        assert_eq!(obuilder.rest_addr.unwrap(), order.rest_addr);
+        assert_eq!(obuilder.state.unwrap(), order.state.to_string());
+        assert_eq!(obuilder.ordertime.unwrap(), order.ordertime);
+        assert!(obuilder.orderlines.len() == 3);
+        assert_eq!(obuilder.orderlines[0], ol1);
+        assert_eq!(obuilder.orderlines[1], ol2);
+        assert_eq!(obuilder.orderlines[2], ol3);
+    }
+
+    #[test]
+    fn test_create_order_builder_from_hbase_row_on_content_empty_order() {
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let trowresult = order_to_trowresult(order.clone());
+        let obuilder = create_order_builder_from_hbase_row(&trowresult);
+        assert_eq!(obuilder.o_id.unwrap(), order.o_id);
+        assert_eq!(obuilder.r_id.unwrap(), order.r_id);
+        assert_eq!(obuilder.c_id.unwrap(), order.c_id);
+        assert_eq!(obuilder.cust_addr.unwrap(), order.cust_addr);
+        assert_eq!(obuilder.rest_addr.unwrap(), order.rest_addr);
+        assert_eq!(obuilder.state.unwrap(), order.state.to_string());
+        assert_eq!(obuilder.ordertime.unwrap(), order.ordertime);
+        assert!(obuilder.orderlines.len() == 0);
+    }
+
+    #[test]
+    fn test_create_order_builder_from_hbase_row_is_some() {
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let trowresult = order_to_trowresult(order);
+        let obuilder = create_order_builder_from_hbase_row(&trowresult);
+        assert!(obuilder.o_id.is_some());
+        assert!(obuilder.c_id.is_some());
+        assert!(obuilder.r_id.is_some());
+        assert!(obuilder.ordertime.is_some());
+        assert!(obuilder.cust_addr.is_some());
+        assert!(obuilder.rest_addr.is_some());
+        assert!(obuilder.state.is_some());
+        assert!(obuilder.orderlines.len() == 0)
+    }
+
+    #[test]
+    fn test_create_scan_with_cols() {
+        let cols = vec!["col1:col".into(), "col2".into()];
+        let colfam = "testcolfam";
+        let col = "testcol";
+        let val = "testval";
+        let scan = create_scan(cols.clone(), colfam, col, val);
+        assert_eq!(scan.columns.unwrap(), cols);
+        assert_eq!(scan.filter_string.unwrap(), Into::<Vec<u8>>::into(build_single_column_filter(colfam, col, "=", val)));
+    }
+
+    #[test]
+    fn test_create_scan_no_cols() {
+        let cols = vec![];
+        let colfam = "testcolfam";
+        let col = "testcol";
+        let val = "testval";
+        let scan = create_scan(cols.clone(), colfam, col, val);
+        assert_eq!(scan.columns.unwrap(), cols);
+        assert_eq!(scan.filter_string.unwrap(), Into::<Vec<u8>>::into(build_single_column_filter(colfam, col, "=", val)));
+    }
+
+    #[test]
+    fn test_build_single_column_filter() {
+        let exp = "SingleColumnValueFilter('test', 'test', =, 'binaryprefix:test')";
+        let actual = build_single_column_filter("test", "test", "=", "test");
+        assert_eq!(actual, exp.to_string());
+    }
 
     #[test]
     fn test_get_column_bad_str() {

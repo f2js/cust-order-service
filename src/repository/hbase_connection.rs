@@ -5,7 +5,7 @@ use thrift::{
     transport::{TBufferedReadTransport, TBufferedWriteTransport, TIoChannel, TTcpChannel, WriteHalf, ReadHalf},
 };
 
-use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation, ColumnDescriptor, TRowResult}, THbaseSyncClientExt, Attributes};
+use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation, ColumnDescriptor, TRowResult, ScannerID, TScan}, THbaseSyncClientExt, Attributes};
 
 use mockall::{automock, predicate::*};
 
@@ -21,6 +21,8 @@ pub trait HbaseClient {
     ) -> thrift::Result<()>;
     fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), thrift::Error>;
     fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error>;
+    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> thrift::Result<ScannerID>;
+    fn scanner_get_list(&mut self, id: ScannerID, nb_rows: i32) -> thrift::Result<Vec<TRowResult>>;
 }
 
 pub struct HbaseConnection {
@@ -69,6 +71,12 @@ impl HbaseClient for HbaseConnection {
     }
     fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error> {
         self.connection.get_row("orders".into(), row_id.into(), BTreeMap::default())
+    }
+    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> thrift::Result<ScannerID> {
+        self.connection.scanner_open_with_scan(table_name, scan, attributes)
+    }
+    fn scanner_get_list(&mut self,id:ScannerID,nb_rows:i32) -> thrift::Result<Vec<TRowResult>> {
+        self.connection.scanner_get_list(id, nb_rows)
     }
     
 }
