@@ -98,7 +98,7 @@ mod tests {
             .withf(move |x,y,z| {
                 std::str::from_utf8(x).unwrap() == "orders"
                 && y.eq(&create_scan(
-                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
                     "ids", "c_id", &userid.clone()
                     ))
                 && z.eq(&BTreeMap::default())
@@ -127,7 +127,7 @@ mod tests {
             .withf(move |x,y,z| {
                 std::str::from_utf8(x).unwrap() == "orders"
                 && y.eq(&create_scan(
-                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
                     "ids", "c_id", &userid.clone()
                     ))
                 && z.eq(&BTreeMap::default())
@@ -151,7 +151,7 @@ mod tests {
             .withf(move |x,y,z| {
                 std::str::from_utf8(x).unwrap() == "orders"
                 && y.eq(&create_scan(
-                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
                     "ids", "c_id", &userid.clone()
                     ))
                 && z.eq(&BTreeMap::default())
@@ -186,7 +186,7 @@ mod tests {
             .withf(move |x,y,z| {
                 std::str::from_utf8(x).unwrap() == "orders"
                 && y.eq(&create_scan(
-                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into()],
+                    vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
                     "ids", "c_id", &userid.clone()
                     ))
                 && z.eq(&BTreeMap::default())

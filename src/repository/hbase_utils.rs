@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_build_single_column_filter() {
-        let exp = "SingleColumnValueFilter('test', 'test', =, 'substring:test')";
+        let exp = "SingleColumnValueFilter('test', 'test', =, 'binaryprefix:test')";
         let actual = build_single_column_filter("test", "test", "=", "test");
         assert_eq!(actual, exp.to_string());
     }
