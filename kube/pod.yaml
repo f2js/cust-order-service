@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: order-service
   labels:
-    app: web
+    app.kubernetes.io/name: order-service
 spec:
   # affinity:
   #     nodeAffinity:
