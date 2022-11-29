@@ -25,6 +25,7 @@ rand = "0.8.5"
 rand_seeder = "0.2.3"
 rand_pcg = "0.3.1"
 mockall = "0.11.2"
+kafka = "0.9.0"
 
 # [[test]]
 # name = "acceptance_tests"
