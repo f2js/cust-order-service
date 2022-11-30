@@ -24,8 +24,8 @@ spec:
   #             values:
   #             - worker-pool-ams3-mfnnt
   containers:
-    - name: order-service
-      image: f2js/order-service:latest
+    - name: cust-order
+      image: f2js/cust-order:latest
       ports:
         - containerPort: 8080
       env:
