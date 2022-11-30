@@ -3,6 +3,9 @@ use std::{ops::{Deref, DerefMut}, str::FromStr};
 
 use actix_web::{web};
 use chrono::{Utc, DateTime, NaiveDateTime};
+use rand::Rng;
+use rand_pcg::Pcg64;
+use rand_seeder::Seeder;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use sha2::{Sha256, Digest};
 
@@ -72,7 +75,7 @@ impl Order {
     pub fn new (orderlines: Vec<Orderline>, cust_addr: String, rest_addr: String, c_id: String, r_id: String) -> Self {
         let ordertime = FormattedDateTime::new().to_rfc3339();
         Self {
-            o_id: to_u32(&Order::hash(&c_id, &r_id, &ordertime.to_string(), &orderlines)).to_string(),
+            o_id: Order::generate_o_id(&c_id, &r_id, &ordertime.to_string(), &orderlines),
             c_id,
             r_id,
             ordertime,
@@ -92,6 +95,18 @@ impl Order {
             hasher.update(ol.to_string());
         }
         hasher.finalize().into()
+    }
+
+    fn generate_o_id(c_id: &str, r_id: &str, ordertime: &str, orderlines: &Vec<Orderline>) -> String {
+        let hash = to_u32(&Order::hash(&c_id, &r_id, &ordertime.to_string(), &orderlines));
+        let mut res = String::from(Order::generate_salt(r_id));
+        res.push_str(&hash.to_string());
+        res
+    }
+    
+    fn generate_salt(seed: &str) -> String {
+        let mut rng: Pcg64 = Seeder::from(seed).make_rng();
+        rng.gen::<u8>().to_string()
     }
 
     pub fn build(builder: OrderBuilder) -> Option<Self> {
@@ -263,4 +278,57 @@ impl OrderInfo {
 
 fn to_u32(slice: &[u8]) -> u32 {
     slice.iter().fold((0,1),|(acc,mul),&bit|(acc+(mul*(1&bit as u32)),mul.wrapping_add(mul))).0
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    #[test]
+    fn test_generate_salt_same_seed() {
+        let inputseed = "Buddingevej 260, 2860 Soborg";
+        let first = Order::generate_salt(inputseed);
+        let second = Order::generate_salt(inputseed);
+        assert_eq!(first, second, "Output changed between first and second salt generation");
+    }
+
+    #[test]
+    fn test_generate_salt_different_seed() {
+        let first = Order::generate_salt("Buddingevej 260, 2860 Soborg");
+        let second = Order::generate_salt("Espegårdsvej 20, 2880 Bagsværd");
+        assert_ne!(first, second, "Output was the same with both salt generations");
+    }
+
+    #[test]
+    fn test_generate_salt_single_character_difference() {
+        let first = Order::generate_salt("Buddingevej 260, 2860 Soborg");
+        let second = Order::generate_salt("Buddingevej 260, 2860 Sobore");
+        assert_ne!(first, second, "Output was the same with both salt generations");
+    }
+
+    #[test]
+    fn test_generate_row_key_different_cust_rest() {
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order2 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "diffcustid".into(), "diffrestid".into());
+        let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
+        let rkey2 = Order::generate_o_id(&order2.c_id, &order2.r_id, &order2.ordertime, &order2.orderlines);
+        assert_ne!(rkey1, rkey2, "Row key was the same");
+    }
+
+    #[test]
+    fn test_generate_row_key_same() {
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order2 = order1.clone();
+        let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
+        let rkey2 = Order::generate_o_id(&order2.c_id, &order2.r_id, &order2.ordertime, &order2.orderlines);
+        assert_eq!(rkey1, rkey2, "Row key was generated differently with same input");
+    }
+
+    #[test]
+    fn test_generate_row_key_front_same() {
+        let restid = "restid".to_string();
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), restid.clone());
+        let front = Order::generate_salt(&restid);
+        let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
+        assert_eq!(rkey1[0..front.len()], front, "salt was not appended to front.");
+    }
 }

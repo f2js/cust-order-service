@@ -7,7 +7,7 @@ use rand_pcg::Pcg64;
 use crate::models::{orders::{Order, Orderline, OrderBuilder}};
 
 pub(crate) fn create_mutation_from_order(order: &Order) -> (BatchMutation, String) {
-    let id_mut = create_cell_mutation("info", "o_id", order.o_id.to_string());
+    //let id_mut = create_cell_mutation("info", "o_id", order.o_id.to_string());
     let otime_mut = create_cell_mutation("info", "o_time", order.ordertime.to_string());
     let state_mut = create_cell_mutation("info", "state", order.state.to_string());
     let cid_mut = create_cell_mutation("ids", "c_id", order.c_id.clone());
@@ -15,12 +15,12 @@ pub(crate) fn create_mutation_from_order(order: &Order) -> (BatchMutation, Strin
     let caddr_mut = create_cell_mutation("addr", "c_addr", order.cust_addr.clone());
     let raddr_mut = create_cell_mutation("addr", "r_addr", order.rest_addr.clone());
     
-    let mut mutations = vec![id_mut, otime_mut, state_mut, cid_mut, rid_mut, caddr_mut, raddr_mut];
+    let mut mutations = vec![otime_mut, state_mut, cid_mut, rid_mut, caddr_mut, raddr_mut];
     for (i, orderline) in order.orderlines.iter().enumerate() {
         let orderline = create_cell_mutation("ol", i.to_string(), format!("{:?}:{:?}", orderline.item_num, orderline.price));
         mutations.push(orderline);
     }
-    let rowkey = generate_row_key(&order);
+    let rowkey = order.o_id.clone();
     (<BatchMutationBuilder>::default().row(rowkey.clone()).mutations(mutations).build(), rowkey)
 }
 
@@ -30,17 +30,6 @@ fn create_cell_mutation(column_family: impl Into<String>, column: impl Into<Stri
     mutation.column(column_family, column);
     mutation.value(value);
     mutation
-}
-
-fn generate_row_key(order: &Order) -> String {
-    let mut res = String::from(generate_salt(&order.r_id));
-    res.push_str(&order.o_id.to_string());
-    res
-}
-
-fn generate_salt(seed: &str) -> String {
-    let mut rng: Pcg64 = Seeder::from(seed).make_rng();
-    rng.gen::<u8>().to_string()
 }
 
 pub fn create_order_builder_from_hbase_row(
@@ -665,14 +654,6 @@ mod tests {
     }
 
     #[test]
-    fn test_create_mutation_from_order_row_key() {
-        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let (_, rkey) = create_mutation_from_order(&order);
-        let exp_rowkey = generate_row_key(&order);
-        assert_eq!(rkey, exp_rowkey, "Wrong row key was set");
-    }
-
-    #[test]
     fn test_create_mutation_from_order_row_key_returned() {
         let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
         let (bmut, rkey) = create_mutation_from_order(&order);
@@ -702,55 +683,6 @@ mod tests {
         assert_eq!(res_colfam, colfam, "Column Family did not match");
         assert_eq!(res_col, col, "Column name did not match");
         assert_eq!(res_value, exp_value, "Value did not match");
-    }
-
-    #[test]
-    fn test_generate_salt_same_seed() {
-        let inputseed = "Buddingevej 260, 2860 Soborg";
-        let first = generate_salt(inputseed);
-        let second = generate_salt(inputseed);
-        assert_eq!(first, second, "Output changed between first and second salt generation");
-    }
-
-    #[test]
-    fn test_generate_salt_different_seed() {
-        let first = generate_salt("Buddingevej 260, 2860 Soborg");
-        let second = generate_salt("Espegårdsvej 20, 2880 Bagsværd");
-        assert_ne!(first, second, "Output was the same with both salt generations");
-    }
-
-    #[test]
-    fn test_generate_salt_single_character_difference() {
-        let first = generate_salt("Buddingevej 260, 2860 Soborg");
-        let second = generate_salt("Buddingevej 260, 2860 Sobore");
-        assert_ne!(first, second, "Output was the same with both salt generations");
-    }
-
-    #[test]
-    fn test_generate_row_key_different_cust_rest() {
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let order2 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "diffcustid".into(), "diffrestid".into());
-        let rkey1 = generate_row_key(&order1);
-        let rkey2 = generate_row_key(&order2);
-        assert_ne!(rkey1, rkey2, "Row key was the same");
-    }
-
-    #[test]
-    fn test_generate_row_key_same() {
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let order2 = order1.clone();
-        let rkey1 = generate_row_key(&order1);
-        let rkey2 = generate_row_key(&order2);
-        assert_eq!(rkey1, rkey2, "Row key was generated differently with same input");
-    }
-
-    #[test]
-    fn test_generate_row_key_front_same() {
-        let restid = "restid".to_string();
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), restid.clone());
-        let front = generate_salt(&restid);
-        let rkey1 = generate_row_key(&order1);
-        assert_eq!(rkey1[0..front.len()], front, "salt was not appended to front.");
     }
 
     fn tuple_to_u8_vec(tuple: (&str, &str)) -> Vec<u8> {
