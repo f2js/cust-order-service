@@ -35,7 +35,7 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
     fn integration_test_get_order_by_user() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_container_and_create_table!(docker).unwrap();
@@ -73,7 +73,7 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
     fn integration_test_get_tables() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_container_and_create_table!(docker).unwrap();
@@ -90,7 +90,7 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
     fn integration_create_order_empty() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_container_and_create_table!(docker).unwrap();
@@ -112,7 +112,7 @@ mod integration_tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
     fn integration_create_order() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_container_and_create_table!(docker).unwrap();
