@@ -9,9 +9,11 @@ use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutatio
 
 use mockall::{automock, predicate::*};
 
+use crate::models::errors::OrderServiceError;
+
 #[cfg_attr(test, automock)]
 pub trait HbaseClient {
-    fn get_table_names(&mut self) -> thrift::Result<Vec<Text>>;
+    fn get_table_names(&mut self) -> Result<Vec<Text>, OrderServiceError>;
     fn put(
         &mut self,
         table_name: &str,
@@ -19,10 +21,10 @@ pub trait HbaseClient {
         timestamp: Option<i64>,
         attributes: Option<Attributes>,
     ) -> thrift::Result<()>;
-    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), thrift::Error>;
-    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error>;
-    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> thrift::Result<ScannerID>;
-    fn scanner_get_list(&mut self, id: ScannerID, nb_rows: i32) -> thrift::Result<Vec<TRowResult>>;
+    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), OrderServiceError>;
+    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, OrderServiceError>;
+    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> Result<ScannerID, OrderServiceError>;
+    fn scanner_get_list(&mut self, id: ScannerID, nb_rows: i32) -> Result<Vec<TRowResult>, OrderServiceError>;
 }
 
 pub struct HbaseConnection {
@@ -30,7 +32,7 @@ pub struct HbaseConnection {
 }
 
 impl HbaseConnection {
-    pub fn connect(url: &str) -> Result<Self, thrift::Error> {
+    pub fn connect(url: &str) -> Result<Self, OrderServiceError> {
         let (i_prot, o_prot) = get_protocols(&url)?;
         Ok(Self{
             connection: HbaseSyncClient::new(i_prot, o_prot)
@@ -39,8 +41,11 @@ impl HbaseConnection {
 }
 
 impl HbaseClient for HbaseConnection {
-    fn get_table_names(&mut self) -> thrift::Result<Vec<Text>> {
-        self.connection.get_table_names()
+    fn get_table_names(&mut self) -> Result<Vec<Text>, OrderServiceError> {
+        match self.connection.get_table_names() {
+            Ok(r) => Ok(r),
+            Err(e) => Err(OrderServiceError::DBError(e)),
+        }
     }
 
     fn put(
@@ -52,10 +57,10 @@ impl HbaseClient for HbaseConnection {
     ) -> thrift::Result<()> {
         self.connection.put(&table_name, row_batches, timestamp, attributes)
     } 
-    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), thrift::Error> {
+    fn create_table(&mut self, table_name: &str, column_families: Vec<String>) -> Result<(), OrderServiceError> {
         match self.connection.table_exists(table_name) {
             Ok(r) => if r {return Ok(())},
-            Err(e) => return Err(e),
+            Err(e) => return Err(OrderServiceError::from(e)),
         };
         let colfams: Vec<ColumnDescriptor> = column_families.iter().map(|elem| {
             ColumnDescriptor {
@@ -67,16 +72,28 @@ impl HbaseClient for HbaseConnection {
                 ..Default::default()
             }
         }).collect();
-        self.connection.create_table(table_name.into(), colfams)
+        match self.connection.create_table(table_name.into(), colfams) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(OrderServiceError::DBError(e)),
+        }
     }
-    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, thrift::Error> {
-        self.connection.get_row("orders".into(), row_id.into(), BTreeMap::default())
+    fn get_row(&mut self, row_id: &str) -> Result<Vec<TRowResult>, OrderServiceError> {
+        match self.connection.get_row("orders".into(), row_id.into(), BTreeMap::default()) {
+            Ok(r) => Ok(r),
+            Err(e) => Err(OrderServiceError::DBError(e)),
+        }
     }
-    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> thrift::Result<ScannerID> {
-        self.connection.scanner_open_with_scan(table_name, scan, attributes)
+    fn scanner_open_with_scan(&mut self, table_name: Text, scan: TScan, attributes: BTreeMap<Text, Text>) -> Result<ScannerID, OrderServiceError> {
+        match self.connection.scanner_open_with_scan(table_name, scan, attributes) {
+            Ok(r) => Ok(r),
+            Err(e) => Err(OrderServiceError::DBError(e)),
+        }
     }
-    fn scanner_get_list(&mut self,id:ScannerID,nb_rows:i32) -> thrift::Result<Vec<TRowResult>> {
-        self.connection.scanner_get_list(id, nb_rows)
+    fn scanner_get_list(&mut self,id:ScannerID,nb_rows:i32) -> Result<Vec<TRowResult>, OrderServiceError> {
+        match self.connection.scanner_get_list(id, nb_rows) {
+            Ok(r) => Ok(r),
+            Err(e) => Err(OrderServiceError::DBError(e)),
+        }
     }
     
 }

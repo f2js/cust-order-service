@@ -1,5 +1,4 @@
-use std::{ops::{Deref, DerefMut}, str::FromStr};
-
+use std::{ops::{Deref, DerefMut}, str::FromStr, fmt::Display};
 
 use actix_web::{web};
 use chrono::{Utc, DateTime, NaiveDateTime};
@@ -8,6 +7,8 @@ use rand_pcg::Pcg64;
 use rand_seeder::Seeder;
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use sha2::{Sha256, Digest};
+
+use super::errors::OrderServiceError;
 
 const SERIALIZE_FORMAT: &'static str = "%Y-%m-%d %H:%M:%S.%f %Z";
 
@@ -125,6 +126,13 @@ impl Order {
             orderlines: builder.orderlines,
         })
     }
+
+    fn to_string(&self) -> Result<String, OrderServiceError> {
+        match serde_json::to_string(&self) {
+            Ok(s) => Ok(s),
+            Err(e) => Err(OrderServiceError::from(e)),
+        }
+    }
 }
 
 impl From<web::Json<CreateOrder>> for Order {
@@ -195,7 +203,7 @@ impl From<DateTime<Utc>> for FormattedDateTime {
 }
 
 impl FormattedDateTime {
-    pub fn parse_from_str(str: &str) -> Result<Self, chrono::ParseError> {
+    pub fn parse_from_str(str: &str) -> Result<Self, OrderServiceError> {
         let s = DateTime::parse_from_str(&str, SERIALIZE_FORMAT)?;
         Ok(Self(s.into()))
     }
@@ -244,12 +252,12 @@ impl std::fmt::Display for Orderline {
 }
 
 impl FromStr for Orderline {
-    type Err = std::num::ParseIntError;
+    type Err = OrderServiceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (item, price) = match s.split_once(':') {
             Some(v) => v,
-            None => ("a", "a"), //Hack to make error thrown, remember to change
+            None => return Err(OrderServiceError::SplitColumnError(s.to_owned())), 
         };
         let item = item.parse::<u32>()?;
         let price = price.parse::<u32>()?;

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::models::errors::OrderServiceError;
 use crate::models::orders::OrderInfo;
 use crate::models::{orders::Order, tables::TableName};
 use crate::repository::hbase_connection::HbaseClient;
@@ -8,7 +9,7 @@ use hbase_thrift::hbase::TScan;
 
 use super::hbase_utils::create_scan;
 
-pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, thrift::Error> {
+pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, OrderServiceError> {
     let tables = client.get_table_names()?;
     let tables_names = tables
         .into_iter()
@@ -17,37 +18,37 @@ pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, thrift
     Ok(tables_names)
 }
 
-pub fn add_order(order: Order, mut client: impl HbaseClient) -> Result<String, thrift::Error> {
+pub fn add_order(order: Order, mut client: impl HbaseClient) -> Result<String, OrderServiceError> {
     let (batch, rowkey) = create_mutation_from_order(&order);
     match client.put("orders", vec![batch], None, None) {
         Ok(_) => Ok(rowkey),
-        Err(e) => Err(e),
+        Err(e) => Err(OrderServiceError::from(e)),
     }
 }
 
-pub fn create_order_table(mut client: impl HbaseClient) -> Result<(), thrift::Error> {
+pub fn create_order_table(mut client: impl HbaseClient) -> Result<(), OrderServiceError> {
     match client.create_table(
         "orders",
         vec!["info".into(), "ids".into(), "addr".into(), "ol".into()],
     ) {
         Ok(_) => Ok(()),
-        Err(e) => Err(e),
+        Err(e) => Err(OrderServiceError::from(e)),
     }
 }
 
-pub fn get_order_row(row_id: &str, mut client: impl HbaseClient) -> Result<Order, thrift::Error> {
+pub fn get_order_row(row_id: &str, mut client: impl HbaseClient) -> Result<Order, OrderServiceError> {
     let r = client.get_row(row_id)?;
     let row = match r.get(0) {
         Some(v) => v,
-        None => return Err(thrift::Error::User("Error, No content found".into())),
+        None => return Err(OrderServiceError::RowNotFound(row_id.to_owned())),
     };
     match Order::build(create_order_builder_from_hbase_row(row)) {
         Some(v) => Ok(v),
-        None => return Err(thrift::Error::User("Error reading row contents".into())),
+        None => return Err(OrderServiceError::OrderBuildFailed()),
     }
 }
 
-pub fn get_orders_info_by_user(user_id: String, mut client: impl HbaseClient) -> Result<Vec<OrderInfo>, thrift::Error> {
+pub fn get_orders_info_by_user(user_id: String, mut client: impl HbaseClient) -> Result<Vec<OrderInfo>, OrderServiceError> {
     let scan = create_scan(
         vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
         "ids", "c_id", &user_id
@@ -113,7 +114,7 @@ mod tests {
             })
             .times(1)
             .returning(move|_x, _y| {
-                Err(thrift::Error::User("()".into()))
+                Err(OrderServiceError::DBError(thrift::Error::User("()".into())))
             });
         let res = get_orders_info_by_user(userid.into(), mock_con);
         assert!(res.is_err());
@@ -134,7 +135,7 @@ mod tests {
             })
             .times(1)
             .returning(|_x, _y, _z| {
-                Err(thrift::Error::User("()".into()))
+                Err(OrderServiceError::DBError(thrift::Error::User("()".into())))
             });
         mock_con.expect_scanner_get_list().never();
         let res = get_orders_info_by_user(userid.into(), mock_con);
