@@ -1468,6 +1468,7 @@ dependencies = [
  "rand_pcg",
  "rand_seeder",
  "serde",
+ "serde_json",
  "sha2",
  "testcontainers",
  "thrift",
