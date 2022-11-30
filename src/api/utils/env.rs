@@ -3,6 +3,9 @@ use std::env;
 pub const DB_IP_ENV_ERR_MSG: &str = "Error finding database ip environment variable. Contact system administrator";
 pub const HBASE_DB_ENV_VAR: &str = "HBASE_IP";
 
+pub const KAFKA_IP_ENV_ERR_MSG: &str = "Error finding event-broker ip environment variable. Contact system administrator";
+pub const KAFKA_ENV_VAR: &str = "KAFKA_IP";
+
 pub fn get_env_var(var: &str) -> Option<String> {
     match env::var(var) {
         Ok(v) => Some(v),
@@ -12,6 +15,10 @@ pub fn get_env_var(var: &str) -> Option<String> {
 
 pub fn get_db_ip() -> Option<String> {
     get_env_var(HBASE_DB_ENV_VAR)
+}
+
+pub fn get_kafka_ip() -> Option<String> {
+    get_env_var(KAFKA_ENV_VAR)
 }
 
 #[cfg(test)]
@@ -45,8 +52,25 @@ mod tests {
     #[test]
     fn test_get_db_ip() {
         let exp_var_value = "123.45.67.89:1011";
-        set_var("HBASE_IP", exp_var_value);
+        set_var(HBASE_DB_ENV_VAR, exp_var_value);
         let res = get_env_var(HBASE_DB_ENV_VAR);
+        assert!(res.is_some());
+        let act_value = res.unwrap();
+        assert_eq!(act_value, exp_var_value);
+    }
+
+    #[test]
+    fn test_get_kafka_ip_not_set() {
+        remove_var(KAFKA_ENV_VAR);
+        let res = get_db_ip();
+        assert!(res.is_none());
+    }
+
+    #[test]
+    fn test_get_kafka_ip() {
+        let exp_var_value = "123.45.67.89:1011";
+        set_var(KAFKA_ENV_VAR, exp_var_value);
+        let res = get_env_var(KAFKA_ENV_VAR);
         assert!(res.is_some());
         let act_value = res.unwrap();
         assert_eq!(act_value, exp_var_value);
