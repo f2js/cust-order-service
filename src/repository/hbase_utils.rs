@@ -484,7 +484,6 @@ mod tests {
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
-        let o_id_mut  = mutations.pop().unwrap();
 
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("ol", "2"));
         assert_eq!(ol3_mut.column.unwrap(), exp_cols, "Column family or Column for orderline3 did not match the expected names.");
@@ -505,8 +504,6 @@ mod tests {
         assert_eq!(state_mut.column.unwrap(), exp_cols, "Column family or Column for state did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("info", "o_time"));
         assert_eq!(otime_mut.column.unwrap(), exp_cols, "Column family or Column for ordertime did not match the expected names.");
-        let exp_cols: Vec<u8> = tuple_to_u8_vec(("info", "o_id"));
-        assert_eq!(o_id_mut.column.unwrap(), exp_cols, "Column family or Column for order id did not match the expected names.");
     }
 
     #[test]
@@ -515,7 +512,7 @@ mod tests {
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
         let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let (bmut, _) = create_mutation_from_order(&order);
+        let (bmut, o_id) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let ol3_mut = mutations.pop().unwrap();
         let ol2_mut = mutations.pop().unwrap();
@@ -526,7 +523,6 @@ mod tests {
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
-        let o_id_mut  = mutations.pop().unwrap();
 
         let exp_val: Vec<u8> = tuple_to_u8_vec((&ol3.item_num.to_string(), &ol3.price.to_string()));
         assert_eq!(ol3_mut.value.unwrap(), exp_val, "Orderline3 value did not match expected value");
@@ -548,7 +544,7 @@ mod tests {
         let exp_otime: Vec<u8> = order.ordertime.to_string().into();
         assert_eq!(otime_mut.value.unwrap(), exp_otime, "Ordertime did not match the expected Ordertime.");
         let exp_o_id: Vec<u8> = order.o_id.to_string().into();
-        assert_eq!(o_id_mut.value.unwrap(), exp_o_id, "OrderId did not match the expected OrderId.");
+        assert_eq!(Into::<Vec<u8>>::into(o_id), exp_o_id, "OrderId did not match the expected OrderId.");
     }
     #[test]
     fn test_create_mutation_from_order_values() {
@@ -601,7 +597,6 @@ mod tests {
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
-        let o_id_mut  = mutations.pop().unwrap();
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "r_addr"));
         assert_eq!(raddr_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "c_addr"));
@@ -614,14 +609,12 @@ mod tests {
         assert_eq!(state_mut.column.unwrap(), exp_cols, "Column family or Column for state did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("info", "o_time"));
         assert_eq!(otime_mut.column.unwrap(), exp_cols, "Column family or Column for ordertime did not match the expected names.");
-        let exp_cols: Vec<u8> = tuple_to_u8_vec(("info", "o_id"));
-        assert_eq!(o_id_mut.column.unwrap(), exp_cols, "Column family or Column for order id did not match the expected names.");
     }
 
     #[test]
     fn test_create_mutation_from_empty_order_values() {
         let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let (bmut, _) = create_mutation_from_order(&order);
+        let (bmut, o_id) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let raddr_mut = mutations.pop().unwrap();
         let caddr_mut = mutations.pop().unwrap();
@@ -629,7 +622,6 @@ mod tests {
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
-        let o_id_mut  = mutations.pop().unwrap();
         let exp_raddr: Vec<u8> = order.rest_addr.into();
         assert_eq!(raddr_mut.value.unwrap(), exp_raddr, "Restaurant Address did not match the expected address.");
         let exp_caddr: Vec<u8> = order.cust_addr.into();
@@ -643,7 +635,7 @@ mod tests {
         let exp_otime: Vec<u8> = order.ordertime.to_string().into();
         assert_eq!(otime_mut.value.unwrap(), exp_otime, "Ordertime did not match the expected Ordertime.");
         let exp_o_id: Vec<u8> = order.o_id.to_string().into();
-        assert_eq!(o_id_mut.value.unwrap(), exp_o_id, "OrderId did not match the expected OrderId.");
+        assert_eq!(Into::<Vec<u8>>::into(o_id), exp_o_id, "OrderId did not match the expected OrderId.");
     }
 
     #[test]

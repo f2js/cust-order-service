@@ -7,11 +7,9 @@ use thrift::{
 
 use hbase_thrift::{hbase::{HbaseSyncClient, Text, THbaseSyncClient, BatchMutation, ColumnDescriptor, TRowResult, ScannerID, TScan}, THbaseSyncClientExt, Attributes};
 
-use mockall::{automock, predicate::*};
-
 use crate::models::errors::OrderServiceError;
 
-#[cfg_attr(test, automock)]
+#[cfg_attr(test, mockall::automock)]
 pub trait HbaseClient {
     fn get_table_names(&mut self) -> Result<Vec<Text>, OrderServiceError>;
     fn put(
