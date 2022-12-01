@@ -3,7 +3,9 @@
 This is the service handling creation and fetching of orders for the customer. 
 
 ## Status
-Currently only in proof-of-concept state. In order to work you need to manually open a SSH connection to the database droplet, and run `~/hbase/bin/hbase thrift start -p 9090 --inforport 9095` to start the thrift interface which the service connects to. The thift interface will end if you close the SSH connection.
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/f2js/cust-order-service/tree/main.svg?style=svg&circle-token=a610a02cf3ad0a9fc3c877a2d99a162127b93ed5)](https://dl.circleci.com/status-badge/redirect/gh/f2js/cust-order-service/tree/main)
+
+[![CircleCI](https://dl.circleci.com/insights-snapshot/gh/f2js/cust-order-service/main/build-deploy-master/badge.svg?window=30d&circle-token=9dfa94882002edd431767c1c3624cd4d4e9c04f9)](https://app.circleci.com/insights/github/f2js/cust-order-service/workflows/build-deploy-master/overview?branch=main&reporting-window=last-30-days&insights-snapshot=true)
 
 ## Database 
 The service uses HBase as the database. Below is a sketch of the datamodel.
@@ -19,7 +21,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Column</i></td>
-    <td><i><b>o_id</b></i></td>
     <td><i><b>o_time</b></i></td>
     <td><i><b>state</b></i></td>
     <td><i><b>c_id</b></i></td>
@@ -33,7 +34,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Content</i></td>
-    <td>**</td>
     <td>*</td>
     <td>DateTime of order creation</td>
     <td>Processing, Pending, Rejected, Accepted, ReadyForPickup, OutForDelivery, Delivered</td>
@@ -41,7 +41,7 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td>Mongo ObjectId</td>
     <td>Customer address</td>
     <td>Restaurant address</td>
-    <td>menuid:price***</td>
+    <td>menuid:price**</td>
     <td>-||-</td>
     <td>-||-</td>
     <td>-||-</td>
@@ -50,7 +50,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Examples</i></td>
-    <td></td>
     <td></td>
     <td>2022-25-08 13:48:25</td>
     <td>Pending</td>
@@ -66,8 +65,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td>1:15</td>
   </tr>
 </table>
-* sha256 of c_id, r_id, ordertime and all orderlines
+* sha256 of c_id, r_id, ordertime and all orderlines with random salt using r_id as seed appended to front, to make searching easier for restaurants
 
-** random salt using r_id as seed with o_id appended
-
-*** price in cents/ører
+** price in cents/ører
