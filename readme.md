@@ -21,7 +21,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Column</i></td>
-    <td><i><b>o_id</b></i></td>
     <td><i><b>o_time</b></i></td>
     <td><i><b>state</b></i></td>
     <td><i><b>c_id</b></i></td>
@@ -35,7 +34,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Content</i></td>
-    <td>**</td>
     <td>*</td>
     <td>DateTime of order creation</td>
     <td>Processing, Pending, Rejected, Accepted, ReadyForPickup, OutForDelivery, Delivered</td>
@@ -43,7 +41,7 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td>Mongo ObjectId</td>
     <td>Customer address</td>
     <td>Restaurant address</td>
-    <td>menuid:price***</td>
+    <td>menuid:price**</td>
     <td>-||-</td>
     <td>-||-</td>
     <td>-||-</td>
@@ -52,7 +50,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
   </tr>
   <tr>
     <td><i>Examples</i></td>
-    <td></td>
     <td></td>
     <td>2022-25-08 13:48:25</td>
     <td>Pending</td>
@@ -68,8 +65,6 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
     <td>1:15</td>
   </tr>
 </table>
-* sha256 of c_id, r_id, ordertime and all orderlines
+* sha256 of c_id, r_id, ordertime and all orderlines with random salt using r_id as seed appended to front, to make searching easier for restaurants
 
-** random salt using r_id as seed with o_id appended
-
-*** price in cents/ører
+** price in cents/ører
