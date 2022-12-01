@@ -58,7 +58,7 @@ mod integration_tests {
     #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
     fn integration_test_get_order_by_user() {
         let docker = clients::Cli::docker();
-        let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
+        let (_hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
         // let (kafka, kaf_ip) = start_kafka_container_and_create_topic!(docker);
         let cust_id = "CustomerId";
         let order_to_create1 = CreateOrder {
@@ -88,32 +88,16 @@ mod integration_tests {
                 price: 5,
             }],
         };
-        workers::create_order(Json(order_to_create1.clone()), &ip, "-1");
+        let x = workers::create_order(Json(order_to_create1.clone()), &ip, "localhost:9092").unwrap();
         std::thread::sleep(std::time::Duration::from_secs(5));
-        workers::create_order(Json(order_to_create2.clone()), &ip, "-1");
+        let y = workers::create_order(Json(order_to_create2.clone()), &ip, "localhost:9092").unwrap();
         std::thread::sleep(std::time::Duration::from_secs(5));
-        workers::create_order(Json(order_to_create3.clone()), &ip, "-1");
+        let z = workers::create_order(Json(order_to_create3.clone()), &ip, "localhost:9092").unwrap();
+        println!("X: {x}, Y: {y}, Z: {z}");
         std::thread::sleep(std::time::Duration::from_secs(5));
-        let res = workers::get_orders_info_by_user(cust_id, &ip);
-        let res = res.unwrap();
+        let res = workers::get_orders_info_by_user(cust_id, &ip).unwrap();
+        println!("{}", res.len());
         assert!(res.len() == 3);
-    }
-
-    #[test]
-    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
-    fn integration_test_get_tables() {
-        let docker = clients::Cli::docker();
-        let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
-        let res = match workers::get_tables(&ip) {
-            Ok(r) => r,
-            Err(e) => {
-                println!("Error!: {:?}", e.to_string());
-                panic!("Booooo")
-            }
-        };
-        for table in res {
-            assert_eq!(table.table_name, "orders");
-        }
     }
 
     #[test]
@@ -130,7 +114,7 @@ mod integration_tests {
             rest_addr: "RestaurantAddress".into(),
             orderlines: vec![],
         };
-        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "-1").unwrap();
+        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
         let res = workers::get_row(&rowkey, &ip).unwrap();
         assert_eq!(res.c_id, order_to_create.c_id);
         assert_eq!(res.r_id, order_to_create.r_id);
@@ -165,7 +149,7 @@ mod integration_tests {
             rest_addr: "RestaurantAddress".into(),
             orderlines: vec![ol1.clone(), ol2.clone(), ol3.clone()],
         };
-        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "-1").unwrap();
+        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
         let res = workers::get_row(&rowkey, &ip).unwrap();
         assert_eq!(res.c_id, order_to_create.c_id);
         assert_eq!(res.r_id, order_to_create.r_id);
@@ -179,6 +163,23 @@ mod integration_tests {
                     || ol.item_num == ol3.item_num
             );
             assert!(ol.price == ol1.price || ol.price == ol2.price || ol.price == ol3.price);
+        }
+    }
+
+    #[test]
+    #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
+    fn integration_test_get_tables() {
+        let docker = clients::Cli::docker();
+        let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
+        let res = match workers::get_tables(&ip) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error!: {:?}", e.to_string());
+                panic!("Booooo")
+            }
+        };
+        for table in res {
+            assert_eq!(table.table_name, "orders");
         }
     }
 }

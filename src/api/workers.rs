@@ -6,10 +6,10 @@ pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str, kafka_ip: &s
     let hbase_con = HbaseConnection::connect(db_ip)?;
     let order = Order::from(param_obj);
     let o_id = hbase::add_order(order.clone(), hbase_con)?;
-    if !kafka_ip.eq("-1") { // For testing without kafka
-        let mut kafka_con = KafkaProdConnection::connect(kafka_ip.into())?;
-        producers::publish_order_created(order, &mut kafka_con)?;
-    }
+
+    let mut kafka_con = KafkaProdConnection::connect(kafka_ip.into())?;
+    producers::publish_order_created(order, &mut kafka_con)?;
+
     Ok(o_id)
 }
 

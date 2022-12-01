@@ -40,6 +40,7 @@ pub fn create_order_builder_from_hbase_row(
         Some(v) =>v,
         None => return order_builder,
     };
+    order_builder.o_id = get_value(hbase_row.row.clone());
     for (col, cell) in cols.iter() {
         let col = col.clone();
         let cell = cell.clone().value;

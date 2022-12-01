@@ -65,7 +65,6 @@ pub async fn get_orders_from_user(path: web::Path<String>) -> impl Responder {
         None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
     let id = path.into_inner();
-    println!("{id}");
     match workers::get_orders_info_by_user(&id, &db_ip) {
         Ok(r) => 
             return generate_err_response(&mut HttpResponse::Ok(), r),
