@@ -119,7 +119,6 @@ pub fn create_scan(columns_to_fetch: Vec<Vec<u8>>, filter_colfam: &str, filter_c
 // Only for testing purposes 
 pub(crate) fn order_to_trowresult(order: Order) -> hbase_thrift::hbase::TRowResult {
     let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
-    columns.insert("info:o_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
     columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
     columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
     columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell(&order.c_id));
@@ -129,7 +128,7 @@ pub(crate) fn order_to_trowresult(order: Order) -> hbase_thrift::hbase::TRowResu
     for (i, v) in order.orderlines.iter().enumerate() {
         columns.insert(format!("ol:{i}").as_bytes().to_vec(), _to_tcell(&v.to_string()));
     };
-    hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None }
+    hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None }
 }
 
 fn _to_tcell(val: &str) -> hbase_thrift::hbase::TCell {
@@ -147,20 +146,19 @@ mod tests {
     fn test_create_order_builder_from_hbase_row_unknown_field() {
         let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
         let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
-        columns.insert("inaaafo:oooo_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
-        columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
+        columns.insert("infou:o_taime".as_bytes().to_vec(), _to_tcell(&order.ordertime));
         columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
         columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell(&order.c_id));
         columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
         columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
         columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
-        let trowresult = hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
+        let trowresult = hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
-        assert!(obuilder.o_id.is_none());
-
+        assert!(obuilder.ordertime.is_none());
+        
         assert!(obuilder.c_id.is_some());
         assert!(obuilder.r_id.is_some());
-        assert!(obuilder.ordertime.is_some());
+        assert!(obuilder.o_id.is_some());
         assert!(obuilder.cust_addr.is_some());
         assert!(obuilder.rest_addr.is_some());
         assert!(obuilder.state.is_some());
@@ -178,7 +176,7 @@ mod tests {
         columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
         columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
         columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
-        let trowresult = hbase_thrift::hbase::TRowResult { row: Some("row".as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
+        let trowresult = hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert!(obuilder.c_id.is_none());
 
