@@ -14,13 +14,13 @@ pub enum OrderServiceError {
 impl Display for OrderServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OrderServiceError::JSONParseError(e) => write!(f, "{}", e),
-            OrderServiceError::DBError(e) => write!(f, "{}", e),
-            OrderServiceError::TimeParseError(e) => write!(f, "{}", e),
-            OrderServiceError::IntParseError(e) => write!(f, "{}", e),
-            OrderServiceError::EventBrokerError(e) => write!(f, "{}", e),
+            OrderServiceError::JSONParseError(e) => write!(f, "JSONParseError: {}", e),
+            OrderServiceError::DBError(e) => write!(f, "DBError: {}", e),
+            OrderServiceError::TimeParseError(e) => write!(f, "TimeParseError: {}", e),
+            OrderServiceError::IntParseError(e) => write!(f, "IntParseError: {}", e),
+            OrderServiceError::EventBrokerError(e) => write!(f, "KafkaError: {}", e),
             OrderServiceError::RowNotFound(row) => write!(f, "Error: Row with id: '{}' was not found.", row),
-            OrderServiceError::OrderBuildFailed() => write!(f, "Error building order."),
+            OrderServiceError::OrderBuildFailed() => write!(f, "Error building order from row content."),
             OrderServiceError::SplitColumnError(column) => write!(f, "Error splitting column - missing ':' character in string: {}", column),
         }
     }
