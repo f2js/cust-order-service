@@ -1,5 +1,4 @@
 use std::fmt::Display;
-
 #[derive(Debug)]
 pub enum OrderServiceError {
     JSONParseError(serde_json::Error),
@@ -9,6 +8,7 @@ pub enum OrderServiceError {
     DBError(thrift::Error),
     RowNotFound(String),
     OrderBuildFailed(),
+    EventBrokerError(kafka::Error)
 }
 
 impl Display for OrderServiceError {
@@ -18,6 +18,7 @@ impl Display for OrderServiceError {
             OrderServiceError::DBError(e) => write!(f, "{}", e),
             OrderServiceError::TimeParseError(e) => write!(f, "{}", e),
             OrderServiceError::IntParseError(e) => write!(f, "{}", e),
+            OrderServiceError::EventBrokerError(e) => write!(f, "{}", e),
             OrderServiceError::RowNotFound(row) => write!(f, "Error: Row with id: '{}' was not found.", row),
             OrderServiceError::OrderBuildFailed() => write!(f, "Error building order."),
             OrderServiceError::SplitColumnError(column) => write!(f, "Error splitting column - missing ':' character in string: {}", column),
@@ -46,5 +47,11 @@ impl From<chrono::ParseError> for OrderServiceError {
 impl From<std::num::ParseIntError> for OrderServiceError {
     fn from(err: std::num::ParseIntError) -> Self {
         OrderServiceError::IntParseError(err)
+    }
+}
+
+impl From<kafka::Error> for OrderServiceError {
+    fn from(err: kafka::Error) -> Self {
+        OrderServiceError::EventBrokerError(err)
     }
 }

@@ -1,10 +1,16 @@
 use actix_web::{web};
 
-use crate::{models::{orders::{CreateOrder, Order, OrderInfo}, tables::TableName, errors::OrderServiceError}, repository::{hbase_connection::HbaseConnection, hbase}, producers::producers};
+use crate::{models::{orders::{CreateOrder, Order, OrderInfo}, tables::TableName, errors::OrderServiceError}, repository::{hbase_connection::HbaseConnection, hbase}, producers::{producers, producer_connection::KafkaProdConnection}};
 
-pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str) -> Result<String, OrderServiceError> {
-    let con = HbaseConnection::connect(db_ip)?;
-    hbase::add_order(Order::from(param_obj), con)
+pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str, kafka_ip: &str) -> Result<String, OrderServiceError> {
+    let hbase_con = HbaseConnection::connect(db_ip)?;
+    let order = Order::from(param_obj);
+    let o_id = hbase::add_order(order.clone(), hbase_con)?;
+    if !kafka_ip.eq("-1") { // For testing without kafka
+        let mut kafka_con = KafkaProdConnection::connect(kafka_ip.into())?;
+        producers::publish_order_created(order, &mut kafka_con)?;
+    }
+    Ok(o_id)
 }
 
 pub fn get_tables(db_ip: &str) -> Result<Vec<TableName>, OrderServiceError> {

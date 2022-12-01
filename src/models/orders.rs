@@ -31,7 +31,7 @@ pub struct OrderInfo {
     pub c_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Order {
     pub o_id: String,
     pub c_id: String,
@@ -127,7 +127,7 @@ impl Order {
         })
     }
 
-    fn to_string(&self) -> Result<String, OrderServiceError> {
+    pub fn to_json_string(&self) -> Result<String, OrderServiceError> {
         match serde_json::to_string(&self) {
             Ok(s) => Ok(s),
             Err(e) => Err(OrderServiceError::from(e)),

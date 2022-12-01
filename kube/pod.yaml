@@ -31,3 +31,5 @@ spec:
       env:
         - name: HBASE_IP
           value: ${HBASE_IP}
+        - name: KAFKA_IP
+          value: ${KAFKA_IP}

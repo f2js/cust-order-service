@@ -1,5 +1,4 @@
-use crate::{models::orders::CreateOrder};
-use super::utils::env::{get_db_ip, DB_IP_ENV_ERR_MSG};
+use crate::{models::orders::CreateOrder, api::utils::env::{get_db_ip, get_kafka_ip, DB_IP_ENV_ERR_MSG, KAFKA_IP_ENV_ERR_MSG}};
 use actix_web::{get, post, HttpResponse, Responder, web, HttpResponseBuilder};
 use serde::Serialize;
 use super::workers;
@@ -16,7 +15,11 @@ pub async fn create(param_obj: web::Json<CreateOrder>) -> impl Responder {
         Some(v) => v,
         None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
-    match workers::create_order(param_obj, &db_ip) {
+    let kafka_ip = match get_kafka_ip() {
+        Some(v) => v,
+        None => return generate_err_response(&mut HttpResponse::InternalServerError(), KAFKA_IP_ENV_ERR_MSG),
+    };
+    match workers::create_order(param_obj, &db_ip, &kafka_ip) {
         Ok(r) => 
             return generate_err_response(&mut HttpResponse::Ok(),format!("Successsfully added row: {:?}", r)),
         Err(e) => 
