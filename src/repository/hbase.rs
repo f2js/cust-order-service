@@ -20,7 +20,7 @@ pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, OrderS
 
 pub fn add_order(order: Order, mut client: impl HbaseClient) -> Result<String, OrderServiceError> {
     let (batch, rowkey) = create_mutation_from_order(&order);
-    match client.put("orders", vec![batch], None, None) {
+    match client.put("orders", vec![batch], Some(get_unix_time()), None) {
         Ok(_) => Ok(rowkey),
         Err(e) => Err(OrderServiceError::from(e)),
     }
@@ -48,31 +48,30 @@ pub fn get_order_row(row_id: &str, mut client: impl HbaseClient) -> Result<Order
     }
 }
 
-pub fn get_orders_info_by_user(user_id: String, mut client: impl HbaseClient) -> Result<Vec<OrderInfo>, OrderServiceError> {
+pub fn get_orders_info_by_user<H: HbaseClient>(user_id: String, mut client: H) -> Result<Vec<OrderInfo>, OrderServiceError> {
     let scan = create_scan(
         vec!["info:o_id".into(), "info:o_time".into(), "info:state".into(), "ids:r_id".into(), "ids:c_id".into()],
         "ids", "c_id", &user_id
     );
     let scanid = client.scanner_open_with_scan("orders".into(), scan, BTreeMap::default())?;
     let res = client.scanner_get_list(scanid, 15)?;
-    let mut orders: Vec<OrderInfo> = vec![];
-    for row in res.iter() {
-        orders.push(
-            match OrderInfo::build(create_order_builder_from_hbase_row(row)) {
-                Some(v) => v,
-                None => continue,
-            }
-        );
-    }
+    let orders: Vec<OrderInfo> =  res.iter()
+        .filter_map(|row| OrderInfo::build(create_order_builder_from_hbase_row(row)))
+        .collect();
     Ok(orders)
+}
+
+fn get_unix_time() -> i64 {
+    let now = std::time::SystemTime::now();
+    now.duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        models::orders::Orderline,
-        repository::{hbase_connection::MockHbaseClient, hbase_utils::{create_mutation_from_order, order_to_trowresult}},
+        models::orders::{Orderline, OrderState},
+        repository::{hbase_connection::MockHbaseClient, hbase_utils::{create_mutation_from_order, order_to_trowresult, _to_tcell}},
     };
     use hbase_thrift::{
         hbase::{BatchMutation, Text, TScan, TRowResult, TCell},
@@ -80,16 +79,101 @@ mod tests {
     };
     use mockall::predicate::eq;
 
-    // #[test]
-    // fn test_debugging() {
-    //     const DB_IP: &str = "165.22.194.124:9090";
-    //     let con = crate::repository::hbase_connection::HbaseConnection::connect(&DB_IP).unwrap();
-    //     let r = get_order_row("2441910473035", con);
-    //     let order = match r {
-    //         Ok(r) => r,
-    //         Err(e) => panic!("ERRROR"),
-    //     };
-    // }
+    macro_rules! assert_err {
+        ($expression:expr, $($pattern:tt)+) => {
+            match $expression {
+                $($pattern)+ => (),
+                ref e => panic!("expected `{}` but got `{:?}`", stringify!($($pattern)+), e),
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_order_row_is_ok() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_get_row()
+            .with(eq(userid.clone()))
+            .times(1)
+            .returning(|x| {
+                Ok(vec![order_to_trowresult(
+                    Order {
+                        o_id: x.clone().to_owned(),
+                        c_id: "cust_id".to_owned(),
+                        r_id: "rest_id".to_owned(),
+                        cust_addr: "custaddr".to_owned(),
+                        rest_addr: "restaddr".to_owned(),
+                        ordertime: "time".to_owned(),
+                        state: OrderState::Pending,
+                        orderlines: vec![]
+                    }
+                )])
+            });
+        let res = get_order_row(userid.into(), mock_con);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_get_order_row_success() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_get_row()
+            .with(eq(userid.clone()))
+            .times(1)
+            .returning(|x| {
+                Ok(vec![order_to_trowresult(
+                    Order {
+                        o_id: x.clone().to_owned(),
+                        c_id: "cust_id".to_owned(),
+                        r_id: "rest_id".to_owned(),
+                        cust_addr: "custaddr".to_owned(),
+                        rest_addr: "restaddr".to_owned(),
+                        ordertime: "time".to_owned(),
+                        state: OrderState::Pending,
+                        orderlines: vec![]
+                    }
+                )])
+            });
+        let res = get_order_row(userid.into(), mock_con).unwrap();
+        assert_eq!(res.o_id, userid);
+    }
+    #[test]
+    fn test_get_order_row_bad_trow_result() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_get_row()
+            .with(eq(userid.clone()))
+            .times(1)
+            .returning(|x| {
+                let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
+                columns.insert("ids:c_id".as_bytes().to_vec(), _to_tcell("cust_id"));
+                columns.insert("BADCOLUMNFAMILYNAME:r_id".as_bytes().to_vec(), _to_tcell("rest_id"));
+                columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell("&order.cust_addr"));
+                columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell("&order.rest_addr"));
+                let res = hbase_thrift::hbase::TRowResult { row: Some(x.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
+                Ok(vec![res])
+            });
+        let res = get_order_row(userid.into(), mock_con);
+        assert!(res.is_err());
+        let result_error = res.err().unwrap();
+        assert_err!(result_error, OrderServiceError::OrderBuildFailed());
+    }
+
+    #[test]
+    fn test_get_order_row_err() {
+        let userid = "id";
+        let mut mock_con = MockHbaseClient::new();
+        mock_con.expect_get_row()
+            .with(eq(userid.clone()))
+            .times(1)
+            .returning(move|_x| {
+                Err(OrderServiceError::DBError(thrift::Error::User("Error".into())))
+            });
+        let res = get_order_row(userid.into(), mock_con);
+        assert!(res.is_err());
+        let result_error = res.err().unwrap();
+        assert_err!(result_error, OrderServiceError::DBError(_));
+    }
 
     #[test]
     fn test_get_orders_from_user_scanner_get_fail() {
@@ -224,10 +308,9 @@ mod tests {
             .withf(
                 move |tblname: &str,
                       row_batches: &Vec<BatchMutation>,
-                      timestamp: &Option<i64>,
+                      _timestamp: &Option<i64>,
                       attributes: &Option<Attributes>| {
                     tblname.eq("orders")
-                        && *timestamp == Option::None
                         && *attributes == Option::None
                         && row_batches.eq(&vec![mutations.clone()])
                 },
@@ -266,10 +349,10 @@ mod tests {
             .withf(
                 move |tblname: &str,
                       row_batches: &Vec<BatchMutation>,
-                      timestamp: &Option<i64>,
+                      _timestamp: &Option<i64>,
                       attributes: &Option<Attributes>| {
                     tblname.eq("orders")
-                        && *timestamp == Option::None
+                        // && *timestamp == Option::None
                         && *attributes == Option::None
                         && row_batches.eq(&vec![mutations.clone()])
                 },

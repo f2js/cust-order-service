@@ -44,7 +44,7 @@ pub fn create_order_builder_from_hbase_row(
     for (col, cell) in cols.iter() {
         let col = col.clone();
         let cell = cell.clone().value;
-        let (column, value) = match get_column_and_value(col, cell) {
+        let (column, value) = match get_column_and_value(&col, cell) {
             Some(v) => v,
             None => continue,
         };
@@ -53,15 +53,25 @@ pub fn create_order_builder_from_hbase_row(
     order_builder
 }
 
-fn get_column(col: Vec<u8>) -> Option<(String, String)> {
-    let column: String = match std::str::from_utf8(&col) {
-        Ok(colname) => colname.to_string(),
-        Err(_) => return None,
-    };
-    Some(match column.split_once(':') {
-        Some(v) => (v.0.to_owned(), v.1.to_owned()),
-        None => return None,
-    })
+
+// fn get_column(col: &Vec<u8>) -> Option<(String, String)> {
+//     let column: String = match std::str::from_utf8(col) {
+//         Ok(colname) => colname.to_string(),
+//         Err(_) => return None,
+//     };
+//     Some(match column.split_once(':') {
+//         Some(v) => (v.0.to_owned(), v.1.to_owned()),
+//         None => return None,
+//     })
+// }
+
+fn get_column(col: &[u8]) -> Option<(String, String)> {
+    let column = std::str::from_utf8(col).ok()?;
+    let parts: Vec<&str> = column.split(':').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    Some((parts[0].to_owned(), parts[1].to_owned()))
 }
 
 fn get_value(cell: Option<Vec<u8>>) -> Option<String> {
@@ -72,8 +82,8 @@ fn get_value(cell: Option<Vec<u8>>) -> Option<String> {
     })
 }
 
-fn get_column_and_value(col: Vec<u8>, cell: Option<Vec<u8>>) -> Option<((String, String),String)> {
-    Some((get_column(col)?, get_value(cell)?))
+fn get_column_and_value(col: &Vec<u8>, cell: Option<Vec<u8>>) -> Option<((String, String),String)> {
+    Some((get_column(&col)?, get_value(cell)?))
 }
 
 fn set_order_field(field: (String, String), val: String, order_builder: &mut OrderBuilder) {
@@ -131,7 +141,7 @@ pub(crate) fn order_to_trowresult(order: Order) -> hbase_thrift::hbase::TRowResu
     hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None }
 }
 
-fn _to_tcell(val: &str) -> hbase_thrift::hbase::TCell {
+pub(crate) fn _to_tcell(val: &str) -> hbase_thrift::hbase::TCell {
     hbase_thrift::hbase::TCell { value: Some(val.as_bytes().to_vec()), timestamp: Some(0) }
 }
 
@@ -272,14 +282,14 @@ mod tests {
     #[test]
     fn test_get_column_bad_str() {
         let input:Vec<u8> = vec![255,255,58,255,255];
-        let actual = get_column(input);
+        let actual = get_column(&input);
         assert!(actual.is_none());
     }
 
     #[test]
     fn test_get_column_bad_split() {
         let input:Vec<u8> = "colfamcol".into();
-        let actual = get_column(input);
+        let actual = get_column(&input);
         assert!(actual.is_none());
     }
 
@@ -287,7 +297,7 @@ mod tests {
     fn test_get_column() {
         let expected = ("colfam", "col");
         let input:Vec<u8> = "colfam:col".into();
-        let actual = get_column(input);
+        let actual = get_column(&input);
         assert!(actual.is_some());
         let actual = actual.unwrap();
         assert_eq!(actual.0, expected.0);
