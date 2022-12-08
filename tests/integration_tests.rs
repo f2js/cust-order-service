@@ -93,7 +93,6 @@ mod integration_tests {
         let y = workers::create_order(Json(order_to_create2.clone()), &ip, "localhost:9092").unwrap();
         std::thread::sleep(std::time::Duration::from_secs(5));
         let z = workers::create_order(Json(order_to_create3.clone()), &ip, "localhost:9092").unwrap();
-        println!("X: {x}, Y: {y}, Z: {z}");
         std::thread::sleep(std::time::Duration::from_secs(5));
         let res = workers::get_orders_info_by_user(cust_id, &ip).unwrap();
         println!("{}", res.len());
@@ -114,8 +113,8 @@ mod integration_tests {
             rest_addr: "RestaurantAddress".into(),
             orderlines: vec![],
         };
-        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
-        let res = workers::get_row(&rowkey, &ip).unwrap();
+        let o = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
+        let res = workers::get_row(&o.o_id, &ip).unwrap();
         assert_eq!(res.c_id, order_to_create.c_id);
         assert_eq!(res.r_id, order_to_create.r_id);
         assert_eq!(res.cust_addr, order_to_create.cust_addr);
@@ -149,8 +148,8 @@ mod integration_tests {
             rest_addr: "RestaurantAddress".into(),
             orderlines: vec![ol1.clone(), ol2.clone(), ol3.clone()],
         };
-        let rowkey = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
-        let res = workers::get_row(&rowkey, &ip).unwrap();
+        let o = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
+        let res = workers::get_row(&o.o_id, &ip).unwrap();
         assert_eq!(res.c_id, order_to_create.c_id);
         assert_eq!(res.r_id, order_to_create.r_id);
         assert_eq!(res.cust_addr, order_to_create.cust_addr);

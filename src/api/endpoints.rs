@@ -13,18 +13,23 @@ pub async fn index() -> String {
 pub async fn create(param_obj: web::Json<CreateOrder>) -> impl Responder {
     let db_ip = match get_db_ip() {
         Some(v) => v,
-        None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
+        None => return generate_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
     let kafka_ip = match get_kafka_ip() {
         Some(v) => v,
-        None => return generate_err_response(&mut HttpResponse::InternalServerError(), KAFKA_IP_ENV_ERR_MSG),
+        None => return generate_response(&mut HttpResponse::InternalServerError(), KAFKA_IP_ENV_ERR_MSG),
     };
-    match workers::create_order(param_obj, &db_ip, &kafka_ip) {
+    let order = match workers::create_order(param_obj, &db_ip, &kafka_ip) {
         Ok(r) => 
-            return generate_err_response(&mut HttpResponse::Ok(),format!("Successsfully added row: {:?}", r)),
+            r,
         Err(e) => 
-            return generate_err_response(&mut HttpResponse::InternalServerError(),e.to_string()),
+            return generate_response(&mut HttpResponse::InternalServerError(),e.to_string()),
     };
+    let jsonstring = match order.to_json_string() {
+        Ok(r) => r,
+        Err(e) => return generate_response(&mut HttpResponse::InternalServerError(),e.to_string()),
+    };
+    generate_response(&mut HttpResponse::Ok(),jsonstring)
 }
 
 
@@ -32,13 +37,13 @@ pub async fn create(param_obj: web::Json<CreateOrder>) -> impl Responder {
 pub async fn get_tables() -> impl Responder {
     let db_ip = match get_db_ip() {
         Some(v) => v,
-        None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
+        None => return generate_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
     match workers::get_tables(&db_ip) {
         Ok(tables) => 
-            return generate_err_response(&mut HttpResponse::Ok(),tables),
+            return generate_response(&mut HttpResponse::Ok(),tables),
         Err(e) => 
-            return generate_err_response(&mut HttpResponse::InternalServerError(), e.to_string()),
+            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string()),
     }
     
 }
@@ -47,14 +52,14 @@ pub async fn get_tables() -> impl Responder {
 pub async fn get_order(path: web::Path<String>) -> impl Responder {
     let db_ip = match get_db_ip() {
         Some(v) => v,
-        None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
+        None => return generate_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
     let id = path.into_inner();
     match workers::get_row(&id, &db_ip) {
         Ok(r) => 
-            return generate_err_response(&mut HttpResponse::Ok(),format!("Successfully got order: {:?}", r.o_id)),
+            return generate_response(&mut HttpResponse::Ok(),format!("Successfully got order: {:?}", r.o_id)),
         Err(e) =>
-            return generate_err_response(&mut HttpResponse::InternalServerError(), e.to_string()),
+            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string()),
     }
 }
 
@@ -62,17 +67,17 @@ pub async fn get_order(path: web::Path<String>) -> impl Responder {
 pub async fn get_orders_from_user(path: web::Path<String>) -> impl Responder {
     let db_ip = match get_db_ip() {
         Some(v) => v,
-        None => return generate_err_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
+        None => return generate_response(&mut HttpResponse::InternalServerError(), DB_IP_ENV_ERR_MSG),
     };
     let id = path.into_inner();
     match workers::get_orders_info_by_user(&id, &db_ip) {
         Ok(r) => 
-            return generate_err_response(&mut HttpResponse::Ok(), r),
+            return generate_response(&mut HttpResponse::Ok(), r),
         Err(e) =>
-            return generate_err_response(&mut HttpResponse::InternalServerError(), e.to_string()),
+            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string()),
     }
 }
 
-fn generate_err_response(response_builder: &mut HttpResponseBuilder, error: impl Serialize) -> HttpResponse {
-    response_builder.content_type("APPLICATION_JSON").json(error)
+fn generate_response(response_builder: &mut HttpResponseBuilder, val: impl Serialize) -> HttpResponse {
+    response_builder.content_type("APPLICATION_JSON").json(val)
 }

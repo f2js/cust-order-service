@@ -18,8 +18,8 @@ pub fn get_tables(mut client: impl HbaseClient) -> Result<Vec<TableName>, OrderS
     Ok(tables_names)
 }
 
-pub fn add_order(order: Order, mut client: impl HbaseClient) -> Result<String, OrderServiceError> {
-    let (batch, rowkey) = create_mutation_from_order(&order);
+pub fn add_order(order: &Order, mut client: impl HbaseClient) -> Result<String, OrderServiceError> {
+    let (batch, rowkey) = create_mutation_from_order(order);
     match client.put("orders", vec![batch], Some(get_unix_time()), None) {
         Ok(_) => Ok(rowkey),
         Err(e) => Err(OrderServiceError::from(e)),
@@ -317,7 +317,7 @@ mod tests {
             )
             .times(1)
             .returning(move |_tblname, _batch, _tmstmp, _attr| Ok(()));
-        let res = add_order(order, mock_con);
+        let res = add_order(&order, mock_con);
         assert_eq!(res.unwrap(), rkey);
     }
 
@@ -359,7 +359,7 @@ mod tests {
             )
             .times(1)
             .returning(move |_tblname, _batch, _tmstmp, _attr| Ok(()));
-        let res = add_order(order, mock_con);
+        let res = add_order(&order, mock_con);
         assert_eq!(res.unwrap(), rkey);
     }
 

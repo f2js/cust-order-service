@@ -2,7 +2,7 @@ use crate::models::{errors::OrderServiceError, orders::Order};
 
 use super::producer_connection::{KafkaProducer};
 
-pub fn publish_order_created(order: Order, producer: &mut impl KafkaProducer) -> Result<(), OrderServiceError> {
+pub fn publish_order_created(order: &Order, producer: &mut impl KafkaProducer) -> Result<(), OrderServiceError> {
     let json = order.to_json_string()?;
     producer.send("OrderCreated", json)
 }
@@ -28,7 +28,7 @@ mod tests {
             .returning(|_x, _y| {
                 Ok(())
             });
-        let res = publish_order_created(order, &mut mock_prod);
+        let res = publish_order_created(&order, &mut mock_prod);
         assert!(res.is_ok());
     }
 
@@ -47,7 +47,7 @@ mod tests {
             .returning(|_x, _y| {
                 Err(OrderServiceError::EventBrokerError(kafka::Error::CodecError))
             });
-        let res = publish_order_created(order, &mut mock_prod);
+        let res = publish_order_created(&order, &mut mock_prod);
         assert!(res.is_err());
     }
 }

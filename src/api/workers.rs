@@ -2,15 +2,15 @@ use actix_web::{web};
 
 use crate::{models::{orders::{CreateOrder, Order, OrderInfo}, tables::TableName, errors::OrderServiceError}, repository::{hbase_connection::HbaseConnection, hbase}, producers::{producers, producer_connection::KafkaProdConnection}};
 
-pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str, kafka_ip: &str) -> Result<String, OrderServiceError> {
+pub fn create_order(param_obj: web::Json<CreateOrder>, db_ip: &str, kafka_ip: &str) -> Result<Order, OrderServiceError> {
     let hbase_con = HbaseConnection::connect(db_ip)?;
     let order = Order::from(param_obj);
-    let o_id = hbase::add_order(order.clone(), hbase_con)?;
+    let _o_id = hbase::add_order(&order, hbase_con)?;
 
     let mut kafka_con = KafkaProdConnection::connect(kafka_ip.into())?;
-    producers::publish_order_created(order, &mut kafka_con)?;
+    producers::publish_order_created(&order, &mut kafka_con)?;
 
-    Ok(o_id)
+    Ok(order)
 }
 
 pub fn get_tables(db_ip: &str) -> Result<Vec<TableName>, OrderServiceError> {
