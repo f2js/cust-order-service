@@ -14,8 +14,9 @@ pub(crate) fn create_mutation_from_order(order: &Order) -> (BatchMutation, Strin
     let rid_mut = create_cell_mutation("ids", "r_id", order.r_id.clone());
     let caddr_mut = create_cell_mutation("addr", "c_addr", order.cust_addr.clone());
     let raddr_mut = create_cell_mutation("addr", "r_addr", order.rest_addr.clone());
+    let postal_mut = create_cell_mutation("addr", "postal", order.postal_code.to_string());
     
-    let mut mutations = vec![otime_mut, state_mut, cid_mut, rid_mut, caddr_mut, raddr_mut];
+    let mut mutations = vec![otime_mut, state_mut, cid_mut, rid_mut, caddr_mut, raddr_mut, postal_mut];
     for (i, orderline) in order.orderlines.iter().enumerate() {
         let orderline = create_cell_mutation("ol", i.to_string(), format!("{:?}:{:?}", orderline.item_num, orderline.price));
         mutations.push(orderline);
@@ -96,6 +97,7 @@ fn set_order_field(field: (String, String), val: String, order_builder: &mut Ord
         ("ids", "r_id") => order_builder.r_id = Some(val.clone()),
         ("addr", "c_addr") => order_builder.cust_addr = Some(val.clone()),
         ("addr", "r_addr") => order_builder.rest_addr = Some(val.clone()),
+        ("addr", "postal") => order_builder.postal_code = val.parse::<u32>().ok(),
         ("ol", _) => {
             let result = <Orderline as std::str::FromStr>::from_str(&val.clone());
             match result {
@@ -135,6 +137,7 @@ pub(crate) fn order_to_trowresult(order: Order) -> hbase_thrift::hbase::TRowResu
     columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
     columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
     columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+    columns.insert("addr:postal".as_bytes().to_vec(), _to_tcell(&order.postal_code.to_string()));
     for (i, v) in order.orderlines.iter().enumerate() {
         columns.insert(format!("ol:{i}").as_bytes().to_vec(), _to_tcell(&v.to_string()));
     };
@@ -154,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_create_order_builder_from_hbase_row_unknown_field() {
-        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
         columns.insert("infou:o_taime".as_bytes().to_vec(), _to_tcell(&order.ordertime));
         columns.insert("info:state".as_bytes().to_vec(), _to_tcell(&order.state.to_string()));
@@ -162,6 +165,7 @@ mod tests {
         columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
         columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
         columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+        columns.insert("addr:postal".as_bytes().to_vec(), _to_tcell(&order.postal_code.to_string()));
         let trowresult = hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert!(obuilder.ordertime.is_none());
@@ -177,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_create_order_builder_from_hbase_row_missing_field() {
-        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let mut columns: std::collections::BTreeMap<hbase_thrift::hbase::Text, hbase_thrift::hbase::TCell> = std::collections::BTreeMap::new();
         columns.insert("info:o_id".as_bytes().to_vec(), _to_tcell(&order.o_id));
         columns.insert("info:o_time".as_bytes().to_vec(), _to_tcell(&order.ordertime));
@@ -186,6 +190,7 @@ mod tests {
         columns.insert("ids:r_id".as_bytes().to_vec(), _to_tcell(&order.r_id));
         columns.insert("addr:c_addr".as_bytes().to_vec(), _to_tcell(&order.cust_addr));
         columns.insert("addr:r_addr".as_bytes().to_vec(), _to_tcell(&order.rest_addr));
+        columns.insert("addr:postal".as_bytes().to_vec(), _to_tcell(&order.postal_code.to_string()));
         let trowresult = hbase_thrift::hbase::TRowResult { row: Some(order.o_id.as_bytes().to_vec()), columns: Some(columns), sorted_columns: None };
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert!(obuilder.c_id.is_none());
@@ -204,7 +209,7 @@ mod tests {
         let ol1 = Orderline{item_num: 10, price: 5};
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
-        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let trowresult = order_to_trowresult(order.clone());
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert_eq!(obuilder.o_id.unwrap(), order.o_id);
@@ -214,6 +219,7 @@ mod tests {
         assert_eq!(obuilder.rest_addr.unwrap(), order.rest_addr);
         assert_eq!(obuilder.state.unwrap(), order.state.to_string());
         assert_eq!(obuilder.ordertime.unwrap(), order.ordertime);
+        assert_eq!(obuilder.postal_code.unwrap(), order.postal_code);
         assert!(obuilder.orderlines.len() == 3);
         assert_eq!(obuilder.orderlines[0], ol1);
         assert_eq!(obuilder.orderlines[1], ol2);
@@ -222,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_create_order_builder_from_hbase_row_on_content_empty_order() {
-        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let trowresult = order_to_trowresult(order.clone());
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert_eq!(obuilder.o_id.unwrap(), order.o_id);
@@ -232,17 +238,19 @@ mod tests {
         assert_eq!(obuilder.rest_addr.unwrap(), order.rest_addr);
         assert_eq!(obuilder.state.unwrap(), order.state.to_string());
         assert_eq!(obuilder.ordertime.unwrap(), order.ordertime);
+        assert_eq!(obuilder.postal_code.unwrap(), order.postal_code);
         assert!(obuilder.orderlines.len() == 0);
     }
 
     #[test]
     fn test_create_order_builder_from_hbase_row_is_some() {
-        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let trowresult = order_to_trowresult(order);
         let obuilder = create_order_builder_from_hbase_row(&trowresult);
         assert!(obuilder.o_id.is_some());
         assert!(obuilder.c_id.is_some());
         assert!(obuilder.r_id.is_some());
+        assert!(obuilder.postal_code.is_some());
         assert!(obuilder.ordertime.is_some());
         assert!(obuilder.cust_addr.is_some());
         assert!(obuilder.rest_addr.is_some());
@@ -339,6 +347,7 @@ mod tests {
         assert!(order_builder.c_id.is_none());
         assert!(order_builder.rest_addr.is_none());
         assert!(order_builder.cust_addr.is_none());
+        assert!(order_builder.postal_code.is_none());
         assert!(order_builder.orderlines.len() == 0);
     }
 
@@ -355,6 +364,7 @@ mod tests {
         assert!(order_builder.c_id.is_none());
         assert!(order_builder.rest_addr.is_none());
         assert!(order_builder.cust_addr.is_none());
+        assert!(order_builder.postal_code.is_none());
         assert!(order_builder.orderlines.len() == 0);
     }
 
@@ -481,12 +491,13 @@ mod tests {
         let ol1 = Orderline{item_num: 10, price: 5};
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
-        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, _) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let ol3_mut = mutations.pop().unwrap();
         let ol2_mut = mutations.pop().unwrap();
         let ol1_mut   = mutations.pop().unwrap();
+        let postal_mut = mutations.pop().unwrap();
         let raddr_mut = mutations.pop().unwrap();
         let caddr_mut = mutations.pop().unwrap();
         let rid_mut   = mutations.pop().unwrap();
@@ -501,6 +512,8 @@ mod tests {
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("ol", "0"));
         assert_eq!(ol1_mut.column.unwrap(), exp_cols, "Column family or Column for orderline1 did not match the expected names.");
         
+        let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "postal"));
+        assert_eq!(postal_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "r_addr"));
         assert_eq!(raddr_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "c_addr"));
@@ -520,12 +533,13 @@ mod tests {
         let ol1 = Orderline{item_num: 10, price: 5};
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
-        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, o_id) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let ol3_mut = mutations.pop().unwrap();
         let ol2_mut = mutations.pop().unwrap();
         let ol1_mut   = mutations.pop().unwrap();
+        let postal_mut = mutations.pop().unwrap();
         let raddr_mut = mutations.pop().unwrap();
         let caddr_mut = mutations.pop().unwrap();
         let rid_mut   = mutations.pop().unwrap();
@@ -540,6 +554,8 @@ mod tests {
         let exp_val: Vec<u8> = tuple_to_u8_vec((&ol1.item_num.to_string(), &ol1.price.to_string()));
         assert_eq!(ol1_mut.value.unwrap(), exp_val, "Orderline1 value did not match expected value");
 
+        let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "postal"));
+        assert_eq!(postal_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_raddr: Vec<u8> = order.rest_addr.into();
         assert_eq!(raddr_mut.value.unwrap(), exp_raddr, "Restaurant Address did not match the expected address.");
         let exp_caddr: Vec<u8> = order.cust_addr.into();
@@ -560,7 +576,7 @@ mod tests {
         let ol1 = Orderline{item_num: 10, price: 5};
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
-        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, _) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let ol3_mut = mutations.pop().unwrap();
@@ -580,7 +596,7 @@ mod tests {
         let ol1 = Orderline{item_num: 10, price: 5};
         let ol2 = Orderline{item_num: 16, price: 32};
         let ol3 = Orderline{item_num: 20, price: 64};
-        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![ol1.clone(), ol2.clone(), ol3.clone()], "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, _) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
         let ol3_mut = mutations.pop().unwrap();
@@ -597,15 +613,18 @@ mod tests {
 
     #[test]
     fn test_create_mutation_from_empty_order_columns() {
-        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, _) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
+        let postal_mut = mutations.pop().unwrap();
         let raddr_mut = mutations.pop().unwrap();
         let caddr_mut = mutations.pop().unwrap();
         let rid_mut   = mutations.pop().unwrap();
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
+        let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "postal"));
+        assert_eq!(postal_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "r_addr"));
         assert_eq!(raddr_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "c_addr"));
@@ -622,15 +641,18 @@ mod tests {
 
     #[test]
     fn test_create_mutation_from_empty_order_values() {
-        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, o_id) = create_mutation_from_order(&order);
         let mut mutations = bmut.mutations.unwrap();
+        let postal_mut = mutations.pop().unwrap();
         let raddr_mut = mutations.pop().unwrap();
         let caddr_mut = mutations.pop().unwrap();
         let rid_mut   = mutations.pop().unwrap();
         let cid_mut   = mutations.pop().unwrap();
         let state_mut = mutations.pop().unwrap();
         let otime_mut = mutations.pop().unwrap();
+        let exp_cols: Vec<u8> = tuple_to_u8_vec(("addr", "postal"));
+        assert_eq!(postal_mut.column.unwrap(), exp_cols, "Column family or Column for restaurant address did not match the expected names.");
         let exp_raddr: Vec<u8> = order.rest_addr.into();
         assert_eq!(raddr_mut.value.unwrap(), exp_raddr, "Restaurant Address did not match the expected address.");
         let exp_caddr: Vec<u8> = order.cust_addr.into();
@@ -649,14 +671,14 @@ mod tests {
 
     #[test]
     fn test_create_mutation_from_order_not_empty() {
-        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, _) = create_mutation_from_order(&order);
         assert!(bmut.mutations.is_some());
     }
 
     #[test]
     fn test_create_mutation_from_order_row_key_returned() {
-        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let (bmut, rkey) = create_mutation_from_order(&order);
         let rkey: Vec<u8> = rkey.into();
         assert_eq!(bmut.row.unwrap(), rkey, "Returned wrong rkey");

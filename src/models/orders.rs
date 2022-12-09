@@ -19,6 +19,7 @@ pub struct CreateOrder {
     pub r_id: String,
     pub cust_addr: String,
     pub rest_addr: String,
+    pub postal_code: u32,
     pub orderlines: Vec<Orderline>,
 }
 
@@ -41,6 +42,7 @@ pub struct Order {
     pub state: OrderState,
     pub cust_addr: String,
     pub rest_addr: String,
+    pub postal_code: u32,
 }
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Orderline {
@@ -56,6 +58,7 @@ pub struct OrderBuilder {
     pub state: Option<String>,
     pub cust_addr: Option<String>,
     pub rest_addr: Option<String>,
+    pub postal_code: Option<u32>,
     pub orderlines: Vec<Orderline>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -73,7 +76,7 @@ pub struct FormattedDateTime(DateTime<Utc>);
 
 // Impls
 impl Order {
-    pub fn new (orderlines: Vec<Orderline>, cust_addr: String, rest_addr: String, c_id: String, r_id: String) -> Self {
+    pub fn new (orderlines: Vec<Orderline>, cust_addr: String, rest_addr: String, c_id: String, r_id: String, postal_code: u32) -> Self {
         let ordertime = FormattedDateTime::new().to_rfc3339();
         Self {
             o_id: Order::generate_o_id(&c_id, &r_id, &ordertime.to_string(), &orderlines),
@@ -84,6 +87,7 @@ impl Order {
             state: OrderState::Pending,
             cust_addr,
             rest_addr,
+            postal_code
         }
     }
 
@@ -123,6 +127,7 @@ impl Order {
             rest_addr: builder.rest_addr?,
             state: orderstate,
             ordertime: builder.ordertime?,
+            postal_code: builder.postal_code?,
             orderlines: builder.orderlines,
         })
     }
@@ -143,6 +148,7 @@ impl From<web::Json<CreateOrder>> for Order {
             params.rest_addr.clone(),
             params.c_id.clone(),
             params.r_id.clone(),
+            params.postal_code.clone(),
         )
     }
 }
@@ -315,8 +321,8 @@ mod tests{
 
     #[test]
     fn test_generate_row_key_different_cust_rest() {
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
-        let order2 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "diffcustid".into(), "diffrestid".into());
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
+        let order2 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "diffcustid".into(), "diffrestid".into(), 2860);
         let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
         let rkey2 = Order::generate_o_id(&order2.c_id, &order2.r_id, &order2.ordertime, &order2.orderlines);
         assert_ne!(rkey1, rkey2, "Row key was the same");
@@ -324,7 +330,7 @@ mod tests{
 
     #[test]
     fn test_generate_row_key_same() {
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into());
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), "restid".into(), 2860);
         let order2 = order1.clone();
         let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
         let rkey2 = Order::generate_o_id(&order2.c_id, &order2.r_id, &order2.ordertime, &order2.orderlines);
@@ -334,7 +340,7 @@ mod tests{
     #[test]
     fn test_generate_row_key_front_same() {
         let restid = "restid".to_string();
-        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), restid.clone());
+        let order1 = Order::new(Vec::new(), "addr".into(), "addr2".into(), "custid".into(), restid.clone(), 2860);
         let front = Order::generate_salt(&restid);
         let rkey1 = Order::generate_o_id(&order1.c_id, &order1.r_id, &order1.ordertime, &order1.orderlines);
         assert_eq!(rkey1[0..front.len()], front, "salt was not appended to front.");

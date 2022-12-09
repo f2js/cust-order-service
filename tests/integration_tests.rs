@@ -66,6 +66,7 @@ mod integration_tests {
             r_id: "RestaurantId".into(),
             cust_addr: "CustomerAddress".into(),
             rest_addr: "RestaurantAddress".into(),
+            postal_code: 2860,
             orderlines: vec![],
         };
         let order_to_create2 = CreateOrder {
@@ -73,6 +74,7 @@ mod integration_tests {
             r_id: "otherrest".into(),
             cust_addr: "CustomerAddress".into(),
             rest_addr: "otheraddresss".into(),
+            postal_code: 2860,
             orderlines: vec![Orderline {
                 item_num: 1,
                 price: 5,
@@ -83,6 +85,7 @@ mod integration_tests {
             r_id: "otherrest".into(),
             cust_addr: "CustomerAddress".into(),
             rest_addr: "otheraddresss".into(),
+            postal_code: 2860,
             orderlines: vec![Orderline {
                 item_num: 1,
                 price: 5,
@@ -111,6 +114,7 @@ mod integration_tests {
             r_id: "RestaurantId".into(),
             cust_addr: "CustomerAddress".into(),
             rest_addr: "RestaurantAddress".into(),
+            postal_code: 2860,
             orderlines: vec![],
         };
         let o = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
@@ -146,6 +150,7 @@ mod integration_tests {
             r_id: "RestaurantId".into(),
             cust_addr: "CustomerAddress".into(),
             rest_addr: "RestaurantAddress".into(),
+            postal_code: 2860,
             orderlines: vec![ol1.clone(), ol2.clone(), ol3.clone()],
         };
         let o = workers::create_order(Json(order_to_create.clone()), &ip, "localhost:9092").unwrap();
