@@ -104,6 +104,7 @@ mod tests {
                         cust_addr: "custaddr".to_owned(),
                         rest_addr: "restaddr".to_owned(),
                         ordertime: "time".to_owned(),
+                        postal_code: 2860,
                         state: OrderState::Pending,
                         orderlines: vec![]
                     }
@@ -129,6 +130,7 @@ mod tests {
                         cust_addr: "custaddr".to_owned(),
                         rest_addr: "restaddr".to_owned(),
                         ordertime: "time".to_owned(),
+                        postal_code: 2860,
                         state: OrderState::Pending,
                         orderlines: vec![]
                     }
@@ -229,7 +231,7 @@ mod tests {
     #[test]
     fn test_get_orders_from_user_on_content() {
         let userid = "id";
-        let input_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into());
+        let input_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into(), 2860);
         let exp_order = input_order.clone();
         let mut mock_con = MockHbaseClient::new();
         mock_con.expect_scanner_open_with_scan()
@@ -265,7 +267,7 @@ mod tests {
     #[test]
     fn test_get_orders_from_user_is_ok() {
         let userid = "id";
-        let exp_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into());
+        let exp_order = Order::new(vec![], "cust_addr".into(), "rest_addr".into(), userid.clone().into(), "r_addr".into(), 2860);
         let mut mock_con = MockHbaseClient::new();
         mock_con.expect_scanner_open_with_scan()
             .withf(move |x,y,z| {
@@ -300,6 +302,7 @@ mod tests {
             "addr2".into(),
             "custid".into(),
             "restid".into(),
+            2860,
         );
         let (mutations, rkey) = create_mutation_from_order(&order);
         let mut mock_con = MockHbaseClient::new();
@@ -341,6 +344,7 @@ mod tests {
             "addr2".into(),
             "custid".into(),
             "restid".into(),
+            2860,
         );
         let (mutations, rkey) = create_mutation_from_order(&order);
         let mut mock_con = MockHbaseClient::new();

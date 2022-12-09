@@ -15,10 +15,10 @@ mod tests {
 
     #[test]
     fn test_raise_event_is_ok() {
-        let order = Order::new(vec![], "CustAddr".into(), "RestAddr".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "CustAddr".into(), "RestAddr".into(), "custid".into(), "restid".into(), 2860);
         let exp_json  = format!(
-            "{{\"o_id\":\"{}\",\"c_id\":\"{}\",\"r_id\":\"{}\",\"ordertime\":\"{}\",\"orderlines\":[],\"state\":\"{}\",\"cust_addr\":\"{}\",\"rest_addr\":\"{}\"}}", 
-            order.o_id, order.c_id, order.r_id, order.ordertime, order.state, order.cust_addr, order.rest_addr);
+            "{{\"o_id\":\"{}\",\"c_id\":\"{}\",\"r_id\":\"{}\",\"ordertime\":\"{}\",\"orderlines\":[],\"state\":\"{}\",\"cust_addr\":\"{}\",\"rest_addr\":\"{}\",\"postal_code\":{}}}", 
+            order.o_id, order.c_id, order.r_id, order.ordertime, order.state, order.cust_addr, order.rest_addr, order.postal_code);
         let mut mock_prod = MockKafkaProducer::new();
         mock_prod.expect_send()
             .withf(move |x, y| {
@@ -34,10 +34,10 @@ mod tests {
 
     #[test]
     fn test_raise_event_is_err() {
-        let order = Order::new(vec![], "CustAddr".into(), "RestAddr".into(), "custid".into(), "restid".into());
+        let order = Order::new(vec![], "CustAddr".into(), "RestAddr".into(), "custid".into(), "restid".into(), 2860);
         let exp_json  = format!(
-            "{{\"o_id\":\"{}\",\"c_id\":\"{}\",\"r_id\":\"{}\",\"ordertime\":\"{}\",\"orderlines\":[],\"state\":\"{}\",\"cust_addr\":\"{}\",\"rest_addr\":\"{}\"}}", 
-            order.o_id, order.c_id, order.r_id, order.ordertime, order.state, order.cust_addr, order.rest_addr);
+            "{{\"o_id\":\"{}\",\"c_id\":\"{}\",\"r_id\":\"{}\",\"ordertime\":\"{}\",\"orderlines\":[],\"state\":\"{}\",\"cust_addr\":\"{}\",\"rest_addr\":\"{}\",\"postal_code\":{}}}", 
+            order.o_id, order.c_id, order.r_id, order.ordertime, order.state, order.cust_addr, order.rest_addr, order.postal_code);
         let mut mock_prod = MockKafkaProducer::new();
         mock_prod.expect_send()
             .withf(move |x, y| {
