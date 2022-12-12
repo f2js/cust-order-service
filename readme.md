@@ -7,6 +7,41 @@ This is the service handling creation and fetching of orders for the customer.
 
 [![CircleCI](https://dl.circleci.com/insights-snapshot/gh/f2js/cust-order-service/main/build-deploy-master/badge.svg?window=30d&circle-token=9dfa94882002edd431767c1c3624cd4d4e9c04f9)](https://app.circleci.com/insights/github/f2js/cust-order-service/workflows/build-deploy-master/overview?branch=main&reporting-window=last-30-days&insights-snapshot=true)
 
+## REST API
+### POST /create
+Creates an order. Should be only accessible through the legacy application, by having the API Gateway ignore this endpoint. 
+
+#### Request Body:
+- c_id (String): The ID of the customer, as found in the User Database.
+- r_id (String): The ID of the restaurant, as found in the Restaurant Database.
+- cust_addr (String): The address of the customer.
+- rest_addr (String): The address of the restaurant.
+- postal_code (Unsinged Int): The postal code of the customer.
+- orderlines (Array): The lines in the order: 
+  - item_num (Unsinged Int): The order item number on the menu of the restaurant.
+  - price (Unsigned Int): The price of the item, in cents/ører.
+ 
+ #### Response:
+ - 200 OK: The order was successfully created.
+ - 400 Bad Request: The request body was missing or invalid.
+ - 500 Internal Server Error: An error occurred on the server side.
+ 
+ ### GET /order/{id}
+ Gets an order by the id. Should be rewritten to also take a customer id, and only return the order if it is owned by the given customer. This id should be set by the API Gateway, and shouldn't be settable by the client.
+ 
+ #### Response
+ - 200 OK: The order was successfully found. The response body contains the order in JSON format. 
+ - 404 Not Found: The order was not found.
+ - 500 Internal Server Error: An error occurred on the server side.
+
+### GET /cust/{id}
+Gets all orders for a given customer. Does not fetch orderlines.
+
+#### Response
+- 200 OK: The orders were successfully found. The response body contains a list of the orders for the given customer.
+- 404 Not Found: There was no orders found for the customer.
+- 500 Internal Server Error: An error occurred on the server side.
+
 ## Database 
 The service uses HBase as the database. Below is a sketch of the datamodel.
 
@@ -68,3 +103,27 @@ The service uses HBase as the database. Below is a sketch of the datamodel.
 * sha256 of c_id, r_id, ordertime and all orderlines with random salt using r_id as seed appended to front, to make searching easier for restaurants
 
 ** price in cents/ører
+
+## Kafka Events
+### Produced
+#### OrderCreated
+This event is produced when an order is created. It contains all the contents of the order, as JSON. 
+##### Body
+- o_id (String): The ID of the order in the order-database. 
+- c_id (String): The ID of the customer, as found in the User Database.
+- r_id (String): The ID of the restaurant, as found in the Restaurant Database.
+- ordertime (String): The time which the order was created.
+- cust_addr (String): The address of the customer.
+- rest_addr (String): The address of the restaurant.
+- postal_code (Unsinged Int): The postal code of the customer.
+- state (String): The state of the order. Possible values are:
+  - Processing: The order payment is still being processes.
+  - Pending: The order is pending acceptance from the restaurant.
+  - Rejected: The order was rejected by the restaurant.
+  - Accepted: The order was accepted by the restaurant, and has begun cooking.
+  - ReadyForPickup: The order is waiting for the courier to pick it up.
+  - OutForDelivery: The order is in the process of being delivered.
+  - Delivered: The order has been delivered to the customer. 
+- orderlines (Array): The lines in the order: 
+  - item_num (Unsinged Int): The order item number on the menu of the restaurant.
+  - price (Unsigned Int): The price of the item, in cents/ører.
