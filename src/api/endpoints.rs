@@ -1,7 +1,7 @@
 use super::workers;
 use crate::{
     api::utils::env::{get_db_ip, get_kafka_ip, DB_IP_ENV_ERR_MSG, KAFKA_IP_ENV_ERR_MSG},
-    models::orders::CreateOrder,
+    models::orders::CreateOrder, models::errors::OrderServiceError,
 };
 use actix_web::{get, post, web, HttpResponse, HttpResponseBuilder, Responder};
 use serde::Serialize;
@@ -35,13 +35,7 @@ pub async fn create(param_obj: web::Json<CreateOrder>) -> impl Responder {
             return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
         }
     };
-    let jsonstring = match order.to_json_string() {
-        Ok(r) => r,
-        Err(e) => {
-            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
-        }
-    };
-    generate_response(&mut HttpResponse::Ok(), jsonstring)
+    generate_response(&mut HttpResponse::Ok(), order)
 }
 
 #[get("/tables")]
@@ -72,16 +66,13 @@ pub async fn get_order(path: web::Path<String>) -> impl Responder {
     let order = match workers::get_row(&id, &db_ip) {
         Ok(r) => r,
         Err(e) => {
-            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
+            match e {
+                OrderServiceError::RowNotFound(r) => return generate_response(&mut HttpResponse::NotFound(), format!("Order by id {} was not found.", r)),
+                _ => return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
+            }
         }
     };
-    let jsonstring = match order.to_json_string() {
-        Ok(r) => r,
-        Err(e) => {
-            return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
-        }
-    };
-    generate_response(&mut HttpResponse::Ok(), jsonstring)
+    generate_response(&mut HttpResponse::Ok(), order)
 }
 
 #[get("/cust/{id}")]
@@ -93,12 +84,16 @@ pub async fn get_orders_from_user(path: web::Path<String>) -> impl Responder {
         }
     };
     let id = path.into_inner();
-    match workers::get_orders_info_by_user(&id, &db_ip) {
-        Ok(r) => return generate_response(&mut HttpResponse::Ok(), r),
+    let r = match workers::get_orders_info_by_user(&id, &db_ip) {
+        Ok(r) => r,
         Err(e) => {
             return generate_response(&mut HttpResponse::InternalServerError(), e.to_string())
         }
+    };
+    if r.is_empty() {
+        return generate_response(&mut HttpResponse::NotFound(), format!("No orders was found for customer with id {id}."));
     }
+    generate_response(&mut HttpResponse::Ok(), r)
 }
 
 fn generate_response(
