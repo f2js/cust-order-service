@@ -1,4 +1,4 @@
 pub mod workers;
 pub mod endpoints;
-mod utils;
+pub mod utils;
 // use crate::models::Order;

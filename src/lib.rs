@@ -1,6 +1,6 @@
 pub mod api;
 pub mod models;
-mod repository;
+pub mod repository;
 mod producers;
 
 use actix_web::{App, HttpServer};

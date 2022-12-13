@@ -9,8 +9,9 @@ mod integration_tests {
     use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 
     use order_service::{
-        api::workers::{self, create_table},
-        models::orders::{CreateOrder, Orderline},
+        api::{workers::{self, create_table}, utils::env::get_env_var},
+        models::orders::{CreateOrder, Orderline, Order},
+        repository::{hbase, hbase_connection::HbaseConnection},
     };
 
     macro_rules! start_hbase_container_and_create_table {
@@ -55,8 +56,99 @@ mod integration_tests {
     }
 
     #[test]
+    fn integration_test_add_order_on_db_content() {
+        let ol1 = Orderline {
+            item_num: 10,
+            price: 5,
+        };
+        let ol2 = Orderline {
+            item_num: 16,
+            price: 32,
+        };
+        let ol3 = Orderline {
+            item_num: 20,
+            price: 64,
+        };
+        let order_to_create = CreateOrder {
+            c_id: "CustomerId".into(),
+            r_id: "RestaurantId".into(),
+            cust_addr: "CustomerAddress".into(),
+            rest_addr: "RestaurantAddress".into(),
+            postal_code: 2860,
+            orderlines: vec![ol1.clone(), ol2.clone(), ol3.clone()],
+        };
+        let hbip = get_env_var("HBASE_TEST_IP").unwrap();
+        let hbase_con = HbaseConnection::connect(&hbip).unwrap();
+        let o_id = hbase::add_order(
+            &Order::from(Json(order_to_create.clone())), 
+            hbase_con
+        ).unwrap();
+        
+        let res = workers::get_row(&o_id, &hbip).unwrap();
+        assert_eq!(res.c_id, order_to_create.c_id);
+        assert_eq!(res.r_id, order_to_create.r_id);
+        assert_eq!(res.cust_addr, order_to_create.cust_addr);
+        assert_eq!(res.rest_addr, order_to_create.rest_addr);
+        assert_eq!(res.orderlines.len(), order_to_create.orderlines.len());
+        assert_eq!(res.orderlines[0].item_num, ol1.item_num);
+        assert_eq!(res.orderlines[1].item_num, ol2.item_num);
+        assert_eq!(res.orderlines[2].item_num, ol3.item_num);
+        assert_eq!(res.orderlines[0].price, ol1.price);
+        assert_eq!(res.orderlines[1].price, ol2.price);
+        assert_eq!(res.orderlines[2].price, ol3.price);
+    }
+
+    #[test]
+    fn integration_test_add_order_on_returned() {
+        //Arrange
+        let ol1 = Orderline {
+            item_num: 10,
+            price: 5,
+        };
+        let ol2 = Orderline {
+            item_num: 16,
+            price: 32,
+        };
+        let ol3 = Orderline {
+            item_num: 20,
+            price: 64,
+        };
+        let order_to_create = CreateOrder {
+            c_id: "CustomerId".into(),
+            r_id: "RestaurantId".into(),
+            cust_addr: "CustomerAddress".into(),
+            rest_addr: "RestaurantAddress".into(),
+            postal_code: 2860,
+            orderlines: vec![ol1.clone(), ol2.clone(), ol3.clone()],
+        };
+        let hbip = get_env_var("HBASE_TEST_IP").unwrap();
+        let kafip = get_env_var("KAFKA_TEST_IP").unwrap();
+        //Act
+        let res = workers::create_order(
+            Json(order_to_create.clone()), 
+            &hbip, 
+            &kafip
+        );
+
+        //Assert
+        assert!(res.is_ok());
+        let res = res.unwrap();
+        assert_eq!(res.c_id, order_to_create.c_id);
+        assert_eq!(res.r_id, order_to_create.r_id);
+        assert_eq!(res.cust_addr, order_to_create.cust_addr);
+        assert_eq!(res.rest_addr, order_to_create.rest_addr);
+        assert_eq!(res.orderlines.len(), order_to_create.orderlines.len());
+        assert_eq!(res.orderlines[0].item_num, ol1.item_num);
+        assert_eq!(res.orderlines[1].item_num, ol2.item_num);
+        assert_eq!(res.orderlines[2].item_num, ol3.item_num);
+        assert_eq!(res.orderlines[0].price, ol1.price);
+        assert_eq!(res.orderlines[1].price, ol2.price);
+        assert_eq!(res.orderlines[2].price, ol3.price);
+    }
+
+    #[test]
     #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
-    fn integration_test_get_order_by_user() {
+    fn component_test_get_order_by_user() {
         let docker = clients::Cli::docker();
         let (_hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
         // let (kafka, kaf_ip) = start_kafka_container_and_create_topic!(docker);
@@ -104,7 +196,7 @@ mod integration_tests {
 
     #[test]
     #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
-    fn integration_create_order_empty() {
+    fn component_create_order_empty() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
         // let (kafka,  kaf_ip) = start_kafka_container_and_create_topic!(docker);
@@ -128,7 +220,7 @@ mod integration_tests {
 
     #[test]
     #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
-    fn integration_create_order() {
+    fn component_create_order() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
         // let (kafka,  kaf_ip) = start_kafka_container_and_create_topic!(docker);
@@ -172,7 +264,7 @@ mod integration_tests {
 
     #[test]
     #[ignore = "This test is expensive, and does not work when test is run in docker container. Use 'cargo test -- --ignored' to run ignored tests."]
-    fn integration_test_get_tables() {
+    fn component_test_get_tables() {
         let docker = clients::Cli::docker();
         let (hbase, ip) = start_hbase_container_and_create_table!(docker).unwrap();
         let res = match workers::get_tables(&ip) {

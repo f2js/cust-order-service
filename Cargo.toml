@@ -29,6 +29,6 @@ rand_pcg = "0.3.1"
 kafka = "0.9.0"
 serde_json = "1.0.64"
 
-# [[test]]
-# name = "acceptance_tests"
-# harness = false  # allows Cucumber to print output instead of libtest
+[[test]]
+name = "acceptancetests"
+harness = false  # allows Cucumber to print output instead of libtest
